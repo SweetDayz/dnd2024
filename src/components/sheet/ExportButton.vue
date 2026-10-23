@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 角卡頂部的「匯出試算表」按鈕。第一次按下先顯示使用說明（可勾「不再顯示」，記在 localStorage）。
+// 角卡頂部的「匯出試算表」按鈕（M3 暫緩：保留功能、改成次要的灰色樣式）。第一次按下先顯示使用說明（可勾「不再顯示」，記在 localStorage）。
 import { ref } from 'vue'
 import { useXlsxExport } from '@/composables/useXlsxExport'
 
@@ -35,8 +35,15 @@ function confirm() {
 </script>
 
 <template>
-  <button type="button" class="export" data-testid="export-xlsx" :disabled="busy" @click="onClick">
-    {{ busy ? '匯出中…' : '匯出試算表' }}
+  <button
+    type="button"
+    class="export"
+    data-testid="export-xlsx"
+    :disabled="busy"
+    title="排版尚未完成，審卡請改用 M6 的審卡報告"
+    @click="onClick"
+  >
+    {{ busy ? '匯出中…' : '匯出試算表（TODO）' }}
   </button>
   <span v-if="error" class="error" data-testid="export-error">{{ error }}</span>
   <div v-if="showHelp" class="backdrop" @click.self="showHelp = false">
@@ -70,8 +77,8 @@ button:disabled {
   cursor: wait;
 }
 .export {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
 }
 .error {
   color: var(--color-danger);
