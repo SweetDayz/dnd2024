@@ -30,6 +30,7 @@ import {
   profLabel,
   refToId,
   skillList,
+  parseSpellFilter,
   spellsByFilter,
   toolList,
   toolType,
@@ -112,12 +113,37 @@ export interface ChoiceSlot {
   abilityMax?: number
   /** 有 restricted 選項時，畫面上「顯示這些選項」開關的文字 */
   restrictedToggle?: string
+  /** 法術欄位的候選範圍（法術選擇畫面用來分頁、說明「為什麼不能選」、偵測重複） */
+  spell?: SpellScope
   options: ChoiceOption[]
   /** 目前有效的選擇（已去掉不在選項中的舊值） */
   selected: string[]
   /** 已選滿 */
   done: boolean
   warnings: string[]
+}
+
+/**
+ * 法術選擇欄位的條件。選項（options）已經是符合條件的法術；這裡記錄條件本身，
+ * 讓畫面可以把不符合的法術「顯示但反灰」並說明原因（spellScopeReason）。
+ */
+export interface SpellScope {
+  /** 分頁上的短名稱，例如「法师戲法」「法術書」「魔法学徒；牧师・戲法」 */
+  tab: string
+  /** cantrips 職業戲法；spellbook 法術書；prepared 準備法術；known 已知法術；feature 種族、專長等給的選擇 */
+  role: 'cantrips' | 'spellbook' | 'prepared' | 'known' | 'feature'
+  /** 戲法欄位（只有 0 環）；否則是一環以上 */
+  cantrip: boolean
+  /** 職業法術清單（中文職業名） */
+  classList?: string
+  minLevel?: number
+  maxLevel?: number
+  /** additionalSpells 的篩選字串，例如「level=0|class=牧师」 */
+  filter?: string
+  /** 只能從這些法術選（準備法術＝法術書內的法術） */
+  fromIds?: string[]
+  /** 重複偵測時忽略的相關欄位（法術書與準備法術互相包含是正常的） */
+  linked?: string[]
 }
 
 export interface ProfGrant {
@@ -715,6 +741,8 @@ function processSpells(ctx: Ctx, list: Json[], prefix: string, origin: Origin, l
       } else if (it?.choose && mode !== 'expanded') {
         const count = it.count ?? 1
         const options = spellsByFilter(ctx.data, String(it.choose)).map((sp) => entryOption(sp))
+        const levels = parseSpellFilter(String(it.choose)).levels
+        const cantrip = !!levels?.length && levels.every((l) => l === 0)
         const sel = addSlot(ctx, {
           key: gkey,
           type: 'spell',
@@ -723,6 +751,12 @@ function processSpells(ctx: Ctx, list: Json[], prefix: string, origin: Origin, l
           step: 'spells',
           count,
           options,
+          spell: {
+            tab: `${origin.name}・${cantrip ? '戲法' : '法術'}`,
+            role: 'feature',
+            cantrip,
+            filter: String(it.choose),
+          },
         })
         sel.forEach((id, i) =>
           ctx.out.spells.push({
@@ -1410,9 +1444,11 @@ function processClassSpells(ctx: Ctx) {
     const grant = (slotKey: string, ids: string[], mode: SpellGrant['mode']) =>
       ids.forEach((id, i) => out.spells.push({ key: `${slotKey}:${i}`, spellId: id, slotKey, origin, ...(cc.ability ? { ability: cc.ability } : {}), mode }))
 
+    const list = { classList: cc.listName }
     if (cc.cantrips > 0) {
       const key = `${cls.id}:cantrips`
-      grant(key, addSlot(ctx, { key, type: 'spell', label: `${cc.from.name}戲法（選 ${cc.cantrips}）`, origin, step: 'spells', count: cc.cantrips, options: opts(0, 0) }), 'known')
+      const spell: SpellScope = { tab: `${cc.from.name}戲法`, role: 'cantrips', cantrip: true, ...list, minLevel: 0, maxLevel: 0 }
+      grant(key, addSlot(ctx, { key, type: 'spell', label: `${cc.from.name}戲法（選 ${cc.cantrips}）`, origin, step: 'spells', count: cc.cantrips, options: opts(0, 0), spell }), 'known')
     }
     if (cc.maxSpellLevel < 1) continue
     if (cc.spellbook !== undefined) {
@@ -1422,6 +1458,7 @@ function processClassSpells(ctx: Ctx) {
       )
       for (const g of free) g.mode = 'spellbook'
       const key = `${cls.id}:spellbook`
+      const prepKey = `${cls.id}:prepared`
       const book = addSlot(ctx, {
         key,
         type: 'spell',
@@ -1430,9 +1467,9 @@ function processClassSpells(ctx: Ctx) {
         step: 'spells',
         count: cc.spellbook,
         options: opts(1, cc.maxSpellLevel),
+        spell: { tab: '法術書', role: 'spellbook', cantrip: false, ...list, minLevel: 1, maxLevel: cc.maxSpellLevel, linked: [prepKey] },
       })
-      const prepKey = `${cls.id}:prepared`
-      const inBook = [...book, ...free.map((g) => g.spellId!)]
+      const inBook = [...new Set([...book, ...free.map((g) => g.spellId!)])]
       const prepared = addSlot(ctx, {
         key: prepKey,
         type: 'spell',
@@ -1440,7 +1477,8 @@ function processClassSpells(ctx: Ctx) {
         origin,
         step: 'spells',
         count: cc.prepared ?? 0,
-        options: [...new Set(inBook)].map((id) => data.get(id)).filter((e): e is Entry => !!e).map((e) => entryOption(e)),
+        options: inBook.map((id) => data.get(id)).filter((e): e is Entry => !!e).map((e) => entryOption(e)),
+        spell: { tab: '準備法術', role: 'prepared', cantrip: false, fromIds: inBook, linked: [key] },
       })
       grant(key, book.filter((id) => !prepared.includes(id)), 'spellbook')
       grant(prepKey, prepared, 'class')
@@ -1449,7 +1487,15 @@ function processClassSpells(ctx: Ctx) {
       const n = cc.known ?? cc.prepared ?? 0
       const key = `${cls.id}:${cc.known !== undefined ? 'known' : 'prepared'}`
       const label = cc.known !== undefined ? '已知法術' : '準備法術'
-      grant(key, addSlot(ctx, { key, type: 'spell', label: `${cc.from.name}${label}（選 ${n}，1–${cc.maxSpellLevel} 環）`, origin, step: 'spells', count: n, options: opts(1, cc.maxSpellLevel) }), 'class')
+      const spell: SpellScope = {
+        tab: `${cc.from.name}${label}`,
+        role: cc.known !== undefined ? 'known' : 'prepared',
+        cantrip: false,
+        ...list,
+        minLevel: 1,
+        maxLevel: cc.maxSpellLevel,
+      }
+      grant(key, addSlot(ctx, { key, type: 'spell', label: `${cc.from.name}${label}（選 ${n}，1–${cc.maxSpellLevel} 環）`, origin, step: 'spells', count: n, options: opts(1, cc.maxSpellLevel), spell }), 'class')
     }
   }
 }

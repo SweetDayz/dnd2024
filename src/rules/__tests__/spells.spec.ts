@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { ABILITIES, type Ability } from '@/rules/abilities'
 import { buildCharacter } from '@/rules/build'
 import { deriveSheet } from '@/rules/derive'
-import { addDice, classCastings, evalPreparedFormula, spellRows } from '@/rules/spells'
+import {
+  addDice,
+  classCastings,
+  evalPreparedFormula,
+  holderLabel,
+  otherHolders,
+  spellHolders,
+  spellRows,
+  spellScopePool,
+  spellScopeReason,
+} from '@/rules/spells'
 import { benchmarkLevel, benchmarkLevel1, WIZARD } from './benchmark'
 import { hasRealData, realData } from './realData'
 
@@ -71,5 +81,72 @@ describe.skipIf(!hasRealData)('12 級', () => {
     const { b } = rowsAt(1)
     const slots = b.slots.filter((x) => x.key.startsWith(WIZARD) && x.type === 'spell')
     expect(slots.every((x) => x.done)).toBe(true)
+  })
+})
+
+describe.skipIf(!hasRealData)('法術選擇欄位（M5）', () => {
+  const data = realData()
+  const sp = (n: string) => data.get(`spell|${n}|XPHB`)!
+
+  it('1 級基準角色的分頁：法師戲法、法術書、準備法術、魔法學徒戲法與一環', () => {
+    const b = buildCharacter(benchmarkLevel1(data), data)
+    const tabs = b.slots.filter((s) => s.spell).map((s) => [s.spell!.tab, s.spell!.role, s.count])
+    expect(tabs).toEqual(
+      expect.arrayContaining([
+        ['法师戲法', 'cantrips', 3],
+        ['法術書', 'spellbook', 6],
+        ['準備法術', 'prepared', 4],
+        ['魔法学徒；牧师・戲法', 'feature', 2],
+        ['魔法学徒；牧师・法術', 'feature', 1],
+      ]),
+    )
+  })
+
+  it('不符合欄位的原因：環階太高、不在清單、戲法分開、不在法術書', () => {
+    const b = buildCharacter(benchmarkLevel1(data), data)
+    const scope = (suffix: string) => b.slots.find((s) => s.key.endsWith(suffix))!.spell!
+    const book = scope(`${WIZARD}:spellbook`)
+    expect(spellScopeReason(data, sp('火球术'), book)).toBe('環階太高（目前最高 1 環）')
+    expect(spellScopeReason(data, sp('治疗祷言'), book)).toBe('不在法师法術清單上')
+    expect(spellScopeReason(data, sp('光亮术'), book)).toBe('戲法在另一個欄位選')
+    expect(spellScopeReason(data, sp('魔法飞弹'), book)).toBeUndefined()
+    expect(spellScopeReason(data, sp('燃烧之手'), scope(`${WIZARD}:prepared`))).toMatch(/不在法術書中/)
+    expect(spellScopeReason(data, sp('光导箭'), scope(`${WIZARD}:cantrips`))).toBe('這個欄位只能選戲法')
+    // 反灰候選池只含同類（一環以上），且選項都沒有不符原因
+    const pool = spellScopePool(data, book)
+    expect(pool.every((s) => Number(s.level) > 0)).toBe(true)
+    const opts = b.slots.find((s) => s.key.endsWith(`${WIZARD}:spellbook`))!.options
+    expect(opts.every((o) => spellScopeReason(data, o.entry!, book) === undefined)).toBe(true)
+  })
+
+  it('重複偵測：法術書↔準備法術不算重複；子職免費給的法術再抄進法術書算跨來源重複', () => {
+    const c = benchmarkLevel(data, 12)
+    const b = buildCharacter(c, data)
+    const holders = spellHolders(b)
+    const slot = (suffix: string) => b.slots.find((s) => s.key.endsWith(suffix))!
+    // 法術書裡、也已準備的法師護甲：在兩個分頁都不算重複
+    expect(otherHolders(holders, slot(`${WIZARD}:spellbook`), 'spell|法师护甲|XPHB')).toEqual([])
+    expect(otherHolders(holders, slot(`${WIZARD}:prepared`), 'spell|法师护甲|XPHB')).toEqual([])
+    // 魔法學徒的光導箭：在法術書分頁算「已由 專長 取得」
+    const by = otherHolders(holders, slot(`${WIZARD}:spellbook`), 'spell|光导箭|XPHB').map(holderLabel)
+    expect(by).toEqual([expect.stringMatching(/^專長：魔法学徒/)])
+  })
+
+  it('12 級塑能師：完整選滿法術書與準備法術，欄位標示完成', () => {
+    const c = benchmarkLevel(data, 12)
+    let b = buildCharacter(c, data)
+    const book = b.slots.find((s) => s.key === `${WIZARD}:spellbook`)!
+    const picks = [...book.selected, ...book.options.map((o) => o.value).filter((v) => !book.selected.includes(v))].slice(0, book.count)
+    c.choices[book.key] = picks
+    b = buildCharacter(c, data)
+    expect(b.slots.find((s) => s.key === book.key)!.done).toBe(true)
+    const prep = b.slots.find((s) => s.key === `${WIZARD}:prepared`)!
+    expect(prep.spell!.fromIds!.length).toBeGreaterThanOrEqual(book.count)
+    c.choices[prep.key] = prep.options.slice(0, prep.count).map((o) => o.value)
+    b = buildCharacter(c, data)
+    expect(b.slots.find((s) => s.key === prep.key)!.done).toBe(true)
+    // 已選滿：再加一個會被截掉（選滿停用的規則面）
+    c.choices[prep.key] = prep.options.slice(0, prep.count + 1).map((o) => o.value)
+    expect(buildCharacter(c, data).slots.find((s) => s.key === prep.key)!.selected).toHaveLength(prep.count)
   })
 })

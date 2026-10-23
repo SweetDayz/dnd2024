@@ -1,11 +1,13 @@
 <script setup lang="ts">
-// 法術：職業的戲法、法術書與準備法術，以及種族、專長給的法術（各自記錄施法屬性與使用次數）。
-import SpellTable from '@/components/SpellTable.vue'
+// 法術：上方是各施法職業的施法數據；其他非法術的選擇欄位（例如施法屬性）照舊列出；
+// 法術選擇本身（職業的戲法、法術書、準備法術，以及種族、專長給的法術）在 SpellPicker 的分頁表格裡選，
+// 右側隨時顯示角色從所有來源學會的法術。
+import SpellPicker from '@/components/spells/SpellPicker.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import { ABILITY_NAME, formatMod } from '@/rules/abilities'
 import SlotGroup from './SlotGroup.vue'
 
-const { sheet, spells, casting } = useCharacterBuild()
+const { casting } = useCharacterBuild()
 </script>
 
 <template>
@@ -23,12 +25,10 @@ const { sheet, spells, casting } = useCharacterBuild()
         <span>最高 {{ c.casting.maxSpellLevel }} 環</span>
       </div>
     </section>
-    <p v-else class="muted">職業沒有施法能力；種族或專長給的法術仍會列在下方。</p>
+    <p v-else class="muted">職業沒有施法能力；種族或專長給的法術仍會列在右側。</p>
 
-    <SlotGroup step="spells" />
-
-    <h3>法術一覽</h3>
-    <SpellTable :rows="spells" :slots="sheet?.spellcasting.slots" :pact="sheet?.spellcasting.pact" />
+    <SlotGroup step="spells" skip-spells />
+    <SpellPicker />
   </div>
 </template>
 

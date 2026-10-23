@@ -183,14 +183,40 @@ async function builderSmoke(page, problems) {
     await chip('base:languages', 'gnomish')
 
     // 法術：魔法學徒（牧師）與法師的戲法、法術書、準備法術
+    // M5：法術選擇是分頁＋表格（SpellPicker），每個選擇欄位一個分頁
     await page.click('[data-step="spells"]')
     const W = 'class|法师|XPHB'
-    for (const n of ['光亮术', '法师之手', '冷冻射线']) await chip(`${W}:cantrips`, `spell|${n}|XPHB`)
-    for (const n of ['侦测魔法', '法师护甲', '魔法飞弹', '睡眠术', '雷鸣波', '护盾术']) await chip(`${W}:spellbook`, `spell|${n}|XPHB`)
-    for (const n of ['法师护甲', '魔法飞弹', '睡眠术', '雷鸣波']) await chip(`${W}:prepared`, `spell|${n}|XPHB`)
-    await chip(`${mi}:0`, 'spell|神导术|XPHB')
-    await chip(`${mi}:0`, 'spell|修复术|XPHB')
-    await chip(`${mi}:1`, 'spell|光导箭|XPHB')
+    const spellPick = async (key, id) => {
+      await page.click(`[data-tab="${key}"]`)
+      await page.locator(`[data-testid="spell-pick-table"][data-slot="${key}"] input[data-value="${id}"]`).click()
+    }
+    for (const n of ['光亮术', '法师之手', '冷冻射线']) await spellPick(`${W}:cantrips`, `spell|${n}|XPHB`)
+    if (!(await page.getByTestId('spell-full').count())) problems.push('法術：戲法選滿後應顯示「已選滿」')
+    if (!(await page.locator(`[data-slot="${W}:cantrips"] input[data-value="spell|火焰箭|XPHB"]`).isDisabled()))
+      problems.push('法術：選滿後其他列的勾選框應停用')
+    // 篩選：法術書分頁打開篩選面板，只看儀式法術
+    await page.click(`[data-tab="${W}:spellbook"]`)
+    const total = Number((await page.getByTestId('spell-count').innerText()).replace(/\D/g, ''))
+    await page.getByTestId('spell-filter-toggle').click()
+    await page.locator('[data-group="misc"] [data-tag="ritual"]').click()
+    const rituals = Number((await page.getByTestId('spell-count').innerText()).replace(/\D/g, ''))
+    if (!(rituals > 0 && rituals < total)) problems.push(`法術：篩選儀式後數量應變少（${total} → ${rituals}）`)
+    await page.getByTestId('spell-reset').click()
+    // 顯示不符合的法術（反灰）：1 級法術書看得到 2 環以上但不能勾
+    await page.getByTestId('spell-show-blocked').check()
+    if (!(await page.locator(`[data-slot="${W}:spellbook"] input[data-value="spell|火球术|XPHB"]`).isDisabled()))
+      problems.push('法術：環階太高的火球術應反灰且不能勾選')
+    await page.getByTestId('spell-show-blocked').uncheck()
+    for (const n of ['侦测魔法', '法师护甲', '魔法飞弹', '睡眠术', '雷鸣波', '护盾术']) await spellPick(`${W}:spellbook`, `spell|${n}|XPHB`)
+    for (const n of ['法师护甲', '魔法飞弹', '睡眠术', '雷鸣波']) await spellPick(`${W}:prepared`, `spell|${n}|XPHB`)
+    await spellPick(`${mi}:0`, 'spell|神导术|XPHB')
+    await spellPick(`${mi}:0`, 'spell|修复术|XPHB')
+    await spellPick(`${mi}:1`, 'spell|光导箭|XPHB')
+    // 右側已學會的法術：依來源分組顯示 DC；點擊會在左側定位並顯示詳情
+    const known = page.getByTestId('known-spells')
+    if (!(await known.innerText()).includes('DC 13')) problems.push('法術：右側應顯示法師的 DC 13')
+    await known.locator('[data-spell="光导箭"]').click()
+    if ((await page.getByTestId('spell-detail').getAttribute('data-spell-id')) !== 'spell|光导箭|XPHB') problems.push('法術：點右側法術應顯示詳情')
     const dc = await page.getByTestId('spell-dc').first().innerText()
     if (dc.trim() !== '13') problems.push(`法術：1 級法術 DC 應為 13，畫面為 ${dc}`)
     if (!(await page.locator('[data-spell="雷鸣波"] [data-col="hit"]').first().innerText()).includes('13'))

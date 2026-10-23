@@ -52,5 +52,5 @@ function create(store: ReturnType<typeof useCharacterStore>) {
       ? attackRows(data.value, store.current, build.value, sheet.value, spells.value)
       : [],
   )
-  return { data, ready, store, build, sheet, spells, casting, attacks }
+  return { data, ready, store, build, sheet, mods, spells, casting, attacks }
 }

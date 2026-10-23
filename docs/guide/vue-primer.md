@@ -489,3 +489,38 @@ Vue 3.4 起用一行巨集代替。
 角卡的分頁欄原本是 `1fr`，而 `1fr` 的最小寬度是「內容的最小寬度」：表格或長字串太寬時，欄位會被撐開、整頁出現水平捲軸。
 改成 `minmax(0, 1fr)` 後欄位可以縮到 0，寬表格改由 `.panel { overflow-x: auto }` 自己捲動。
 `npm run check:file` 會在 1280／1440／1920 寬度檢查 `scrollWidth <= clientWidth`，截圖存到 `test-results/`。
+
+## 12. M5 新出現的概念
+
+### 建置期先算好的「索引」，執行期只做集合比對
+
+法術的成分、持續時間、射程在 5etools 裡是巢狀物件（`components.m.cost`、`duration[0].duration.type`…）。
+如果每次篩選都去解析，963 道法術 × 20 個群組會很慢。所以 `scripts/lib/spellIndex.ts` 在 `npm run build-data`
+時就把它們攤平成字串陣列（`idx.comp = ['V','S','M','Mcost']`），畫面上的篩選（`src/data/spellFilter.ts`）
+只要 `includes()`。這和資料庫的「索引欄位」是同一個想法：用一點空間（spells.js 多 0.46 MB）換查詢速度。
+
+### 三態篩選怎麼存
+
+每個群組的狀態是 `{ mode: 'or' | 'and', tags: { 標籤: 1 | -1 } }`：`1` 包含、`-1` 排除、**不在物件裡**就是不篩選。
+用「不存在」代表第三態，存檔最小，也不用處理 `0` 與 `undefined` 兩種寫法。
+
+### 父元件存狀態、子元件只發事件
+
+`SpellFilterPanel.vue` 不自己存任何篩選狀態：收到 `state` prop，改動時 `emit('update', 新狀態)`；
+狀態真正存在 `spellPrefs` store（每個選擇欄位一份，寫進 localStorage）。這樣「重設為預設」「切換分頁」只要換掉 store 裡的值，
+面板自動跟著重畫，不會有兩份狀態不同步的問題。這叫「單向資料流」（props 往下、events 往上）。
+
+### 在 computed 裡只讀、不寫
+
+`spellPrefs.get(key)` 沒存過時回傳一份新的預設值，**不會**順手寫進 store。
+如果在讀取時寫入，computed 執行期間改了響應式狀態，Vue 會警告，也可能造成重算迴圈。寫入一律走 `update()`、`reset()`。
+
+### `<script setup>` 裡可以 `export` 型別
+
+`SpellPickTable.vue` 用 `export interface PickRow` 讓父元件 `import SpellPickTable, { type PickRow } from './SpellPickTable.vue'`。
+`<script setup>` 不能 export 值（變數、函式），但型別可以，因為型別在編譯後就消失了。
+
+### 捲動到某個元素：`nextTick` 之後再找 DOM
+
+點右側「已學會的法術」時，先改 `activeKey`（切換分頁），此時表格還沒重畫；`await nextTick()` 等 Vue 把畫面更新完，
+再用 `document.querySelector('[data-spell-row="…"]').scrollIntoView()`。id 含有 `|` 等特殊字元，所以用 `CSS.escape()` 包起來。

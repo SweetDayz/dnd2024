@@ -11,8 +11,9 @@
 import type { Entry } from '../data/types.ts'
 import { parseTags } from '../data/tags.ts'
 import { ABILITY_NAME, formatMod, isAbility, type Ability } from './abilities.ts'
-import type { Build, ClassInfo, SpellGrant } from './build.ts'
-import { canPick, spellOnClassList, type RulesData } from './data.ts'
+import { schoolName } from '../data/summary.ts'
+import type { Build, ChoiceSlot, ClassInfo, Origin, SpellGrant, SpellScope } from './build.ts'
+import { canPick, matchSpellFilter, parseSpellFilter, spellOnClassList, type RulesData } from './data.ts'
 import { casterParts } from './multiclass.ts'
 
 export interface ClassCasting {
@@ -340,3 +341,77 @@ export function spellcastingStats(castings: ClassCasting[], mods: Record<Ability
     .map((c) => ({ casting: c, ability: c.ability!, dc: 8 + pb + mods[c.ability!], attack: pb + mods[c.ability!], mod: mods[c.ability!] }))
 }
 
+
+// ---------------------------------------------------------------------------
+// 法術選擇欄位（M5-3）：不符合的原因、反灰顯示的候選池、重複偵測
+// ---------------------------------------------------------------------------
+
+/**
+ * 法術不符合這個欄位條件的原因；符合回傳 undefined。
+ * 選擇欄位的 options 已經是符合的法術，這個函式給「顯示但反灰」的 tooltip 用。
+ */
+export function spellScopeReason(data: RulesData, sp: Entry, scope: SpellScope): string | undefined {
+  const lv = Number(sp.level)
+  if (scope.cantrip && lv !== 0) return '這個欄位只能選戲法'
+  if (!scope.cantrip && lv === 0) return '戲法在另一個欄位選'
+  if (scope.fromIds && !scope.fromIds.includes(sp.id)) return '不在法術書中（先抄進法術書才能準備）'
+  if (scope.classList && !spellOnClassList(data, sp, scope.classList)) return `不在${scope.classList}法術清單上`
+  if (scope.maxLevel !== undefined && lv > scope.maxLevel) return `環階太高（目前最高 ${scope.maxLevel} 環）`
+  if (scope.minLevel !== undefined && lv < scope.minLevel) return `環階太低（至少 ${scope.minLevel} 環）`
+  if (scope.filter) {
+    const f = parseSpellFilter(scope.filter)
+    if (f.levels && !f.levels.includes(lv)) return `環階不符（限 ${f.levels.map((l) => (l === 0 ? '戲法' : `${l} 環`)).join('、')}）`
+    if (f.schools && !f.schools.includes(String(sp.school))) return `學派不符（限 ${f.schools.map(schoolName).join('、')}）`
+    if (f.classes && !matchSpellFilter(data, sp, { classes: f.classes })) return `不在${f.classes.join('、')}法術清單上`
+  }
+  if (!canPick(data, sp)) return '來源書目未啟用'
+  return undefined
+}
+
+/** 「顯示但反灰」的候選池：目前書目可選、而且戲法／一環以上與欄位相同的全部法術。 */
+export function spellScopePool(data: RulesData, scope: SpellScope): Entry[] {
+  return data.list('spell').filter((sp) => canPick(data, sp) && (Number(sp.level) === 0) === scope.cantrip)
+}
+
+/** 角色每道法術是從哪些來源取得的（spellId → 授予紀錄）。 */
+export function spellHolders(b: Pick<Build, 'spells'>): Map<string, SpellGrant[]> {
+  const m = new Map<string, SpellGrant[]>()
+  for (const g of b.spells) {
+    if (!g.spellId || g.mode === 'expanded') continue
+    const list = m.get(g.spellId)
+    if (list) list.push(g)
+    else m.set(g.spellId, [g])
+  }
+  return m
+}
+
+/**
+ * 某個欄位裡的某道法術，是否已經由「其他來源」取得（跨來源重複）。
+ * 忽略：同一欄位、相關欄位（法術書↔準備法術），以及準備法術欄位裡的法術書內容。
+ */
+export function otherHolders(holders: Map<string, SpellGrant[]>, slot: Pick<ChoiceSlot, 'key' | 'spell'>, spellId: string): SpellGrant[] {
+  const linked = slot.spell?.linked ?? []
+  return (holders.get(spellId) ?? []).filter(
+    (g) =>
+      g.slotKey !== slot.key &&
+      !(g.slotKey && linked.includes(g.slotKey)) &&
+      !(slot.spell?.role === 'prepared' && g.mode === 'spellbook'),
+  )
+}
+
+const ORIGIN_TYPE: Record<Origin['type'], string> = {
+  race: '種族',
+  background: '背景',
+  class: '職業',
+  subclass: '子職',
+  feat: '專長',
+  optionalfeature: '可選特性',
+  rule: '規則',
+}
+
+/** 「種族：侏儒」「職業：法师（法術書）」 */
+export function holderLabel(g: SpellGrant): string {
+  const name = g.origin.name.replace(/ \d+ 级$/, '')
+  const mode = g.mode === 'spellbook' ? '（法術書）' : ''
+  return `${ORIGIN_TYPE[g.origin.type]}：${name}${mode}`
+}
