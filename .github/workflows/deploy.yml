@@ -1,0 +1,72 @@
+# 測試＋部署到 GitHub Pages。
+#
+# push 到 main（或在 Actions 頁手動按 Run workflow）時：
+#   抓上游資料 → 打包資料 → lint → Vitest → build → file:// 端對端實測 → 部署 dist/
+# 任何一步失敗就不部署。PR 只跑測試、不部署。
+name: Test & Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時只跑一個部署；新的 push 進來時取消還在跑的舊部署
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # 上游 5etools-cn 的 sparse clone 很大，快取起來；fetch-data 有快取時只抓差異
+      - uses: actions/cache@v4
+        with:
+          path: .cache/5etools-cn
+          key: upstream-5etools-cn-${{ github.run_id }}
+          restore-keys: upstream-5etools-cn-
+
+      - name: 抓上游資料並打包
+        run: |
+          npm run fetch-data
+          npm run build-data
+          cat raw/VERSION
+
+      - run: npm run lint
+      - run: npm test -- --run
+      - run: npm run build
+
+      - name: file:// 端對端實測
+        run: |
+          npx playwright install --with-deps chromium
+          npm run check:file
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: test-build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
