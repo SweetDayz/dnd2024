@@ -9,6 +9,7 @@
  *   2014 職業另有 goldAlternative：`{@dice 4d4 × 10|...}`（改拿金幣時擲骰）
  */
 import type { Entry } from '../data/types.ts'
+import { isMundaneItem } from '../data/items.ts'
 import { parseTags } from '../data/tags.ts'
 import { formatMod, type Ability } from './abilities.ts'
 import type { Build } from './build.ts'
@@ -55,7 +56,7 @@ const EQUIPMENT_TYPE: Record<string, string> = {
 
 /** 以名稱找物品（`{special: "法术书"}`），2024 版優先。 */
 function itemByName(data: RulesData, name: string): Entry | undefined {
-  const all = data.list('item').filter((it) => it.name === name)
+  const all = data.list('item').filter((it) => it.name === name && isMundaneItem(it))
   return all.find((it) => it.edition === '2024') ?? all[0]
 }
 

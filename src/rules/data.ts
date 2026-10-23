@@ -6,6 +6,7 @@
  * 測試裡則直接讀 public/data/*.js 或手寫的小 fixture。
  */
 import type { EntryKind } from '../data/ids.ts'
+import { isMundaneItem } from '../data/items.ts'
 import type { Entry, SpellClassRef } from '../data/types.ts'
 import { ABILITY_NAME, isAbility } from './abilities.ts'
 
@@ -148,7 +149,8 @@ function makeToolList(data: RulesData): Entry[] {
   const byKey = new Map<string, Entry>()
   for (const it of data.list('item')) {
     const type = String(it.type ?? '').split('|')[0]!
-    if (!(type in TOOL_TYPES) || !it.engName || it.isItemGroup) continue
+    // 只收一般物品：魔法樂器（+1 调律者之鼓、吟游诗人乐器…）的 type 也是 INS，見 data-notes §17
+    if (!(type in TOOL_TYPES) || !it.engName || it.isItemGroup || !isMundaneItem(it)) continue
     const key = it.engName.toLowerCase()
     const prev = byKey.get(key)
     if (!prev || (it.edition === '2024' && prev.edition !== '2024')) byKey.set(key, it)

@@ -30,7 +30,7 @@ export interface Item {
   note?: string
 }
 
-export type WarningKind = '手動覆寫' | '未完成的選擇' | 'TCE 可選規則' | '重印舊版' | '2014 相容規則' | '屬性值'
+export type WarningKind = '手動覆寫' | '未完成的選擇' | '失效的選擇' | 'TCE 可選規則' | '重印舊版' | '2014 相容規則' | '屬性值'
 
 export interface ReviewWarning {
   kind: WarningKind
@@ -179,6 +179,14 @@ export function buildReviewModel(x: ExportInput): ReviewModel {
     warn({
       kind: '未完成的選擇',
       text: `${slot.origin.level} 級・${originText(slot.origin)}・${plain(slot.label)}（已選 ${n}／${slot.count}）`,
+      src: originBadge(slot.origin),
+    })
+  }
+  for (const slot of b.slots) {
+    if (!slot.stale) continue
+    warn({
+      kind: '失效的選擇',
+      text: `${originText(slot.origin)}・${plain(slot.label)}：存檔中的「${slot.stale.join('、')}」目前不是合法選項，已視為未選擇`,
       src: originBadge(slot.origin),
     })
   }

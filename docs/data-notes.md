@@ -620,3 +620,16 @@ DDB 的屬性值提升、傳奇恩惠、法術精通、招牌法術、學者都�
 3. 已啟用書目中的一般異域樂器（SCAG 的鸟箫、格劳尔号、手鼓…，FRHoF 的班多里琴、西特琴、雅廷琴）都是 `rarity: none`，保留。
 4. 存檔：不升 `schemaVersion`；沿用 `addSlot()` 的「失效選擇 → 未選擇＋欄位警示」，另外在審卡報告警示區新增「失效的選擇」一類，列出欄位名稱與失效的值。
 5. 回歸測試：#1～#6、#8 每一處斷言選項裡沒有 `rarity !== 'none'` 的物品；吟遊詩人任一樂器不含上表例子、含魯特琴；舊存檔回歸測試。
+
+### 17f. 與 2024 PHB 工具清單對照（使用者 2026-10-23 提供原文）
+
+排除魔法物品後，XPHB 的一般工具與 PHB24「Tools」一節逐項一致：工匠工具 17、其他工具 6、遊戲套組 4（資料英文名 `Playing Cards` = Playing Card Set）、樂器 10。`Artisan's Tools`／`Gaming Set`／`Musical Instrument` 是 `isItemGroup` 總稱，本來就不列入。另外多出的是其他書的一般異域樂器 13 種（SCAG：Birdpipes、Glaur、Hand Drum、Longhorn、Songhorn、Tantan、Thelarr、Tocken、Wargong、Yarting、Zulkoon；FRHoF：Bandore、Cittern、Yarting）。
+
+**已決定（2026-10-23）**：修正方案照 17e 執行；異域樂器**保留並標示來源**（書目沒啟用就不出現）。
+
+### 17g. M7-3 實作結果
+
+- `src/data/items.ts` `isMundaneItem()`；`toolList()`、`weaponFilter()`（改為 export、吃 `RulesData`）、`itemByName()` 都改用它。
+- 工具熟練的選項現在附上條目，每項都有來源徽章（異域樂器顯示 SCAG／FRHoF）。
+- `ChoiceSlot.stale`：存檔中不在選項裡的值；審卡報告警示區新增「失效的選擇」。
+- 測試時順便抓到既有 BUG：TCE 奇械師的 `weapons` 有物件寫法 `{"proficiency":"firearms","optional":true}`，選奇械師會讓建角崩潰（`v.toLowerCase is not a function`）。已修正：字串照給；`optional` 的只加附註「可選熟練（由 DM 決定）」；其他物件取 `proficiency`。PHB 德魯伊的 `armor` 也有物件寫法，但那條路徑走 `armorProficiencies`，不受影響。

@@ -12,6 +12,7 @@
  */
 import type { Entry } from '../data/types.ts'
 import { classFeatureRef, subclassFeatureRef } from '../data/classRefs.ts'
+import { isMundaneItem } from '../data/items.ts'
 import { ABILITIES, ABILITY_NAME, isAbility, type Ability } from './abilities.ts'
 import { abilityScores } from './derive.ts'
 import { goldAlternative, startingSets } from './equipment.ts'
@@ -121,6 +122,8 @@ export interface ChoiceSlot {
   /** 已選滿 */
   done: boolean
   warnings: string[]
+  /** 存檔裡有、但目前不在選項中的值（書目改了、或像魔法樂器這種後來被排除的選項）；畫面當作未選擇 */
+  stale?: string[]
 }
 
 /**
@@ -271,7 +274,13 @@ function addSlot(
   const stale = raw.filter((v) => v && !valid.has(v))
   if (stale.length) warnings.push(`先前的選擇目前不可用（可能是書目或其他選擇改了）：${stale.join('、')}`)
   const filled = selected.filter(Boolean).length
-  const slot: ChoiceSlot = { ...s, selected, done: filled >= s.count || filled >= s.options.length, warnings }
+  const slot: ChoiceSlot = {
+    ...s,
+    selected,
+    done: filled >= s.count || filled >= s.options.length,
+    warnings,
+    ...(stale.length ? { stale } : {}),
+  }
   ctx.out.slots.push(slot)
   return selected.filter(Boolean)
 }
@@ -325,6 +334,8 @@ const TOOL_CATEGORY: Record<string, string> = {
 function profOptions(ctx: Ctx, type: ProfType, token: string): ChoiceOption[] | undefined {
   const { data } = ctx
   const opt = (value: string): ChoiceOption => ({ value, label: profLabel(data, type, value) })
+  // 工具選項附上條目，畫面才有來源徽章（異域樂器要看得出是 SCAG／FRHoF）
+  const toolOpt = (t: Entry): ChoiceOption => ({ ...opt(t.engName!.toLowerCase()), entry: t })
   switch (type) {
     case 'skill':
     case 'expertise':
@@ -333,8 +344,8 @@ function profOptions(ctx: Ctx, type: ProfType, token: string): ChoiceOption[] | 
     case 'tool': {
       const cat = TOOL_CATEGORY[token]
       const tools = toolList(data)
-      if (cat) return tools.filter((t) => toolType(t) === cat).map((t) => opt(t.engName!.toLowerCase()))
-      if (['any', 'anyTool', '任意工具'].includes(token)) return tools.map((t) => opt(t.engName!.toLowerCase()))
+      if (cat) return tools.filter((t) => toolType(t) === cat).map(toolOpt)
+      if (['any', 'anyTool', '任意工具'].includes(token)) return tools.map(toolOpt)
       return undefined
     }
     case 'language': {
@@ -405,13 +416,13 @@ const PROF_STEP: Record<ProfType, Step> = {
 }
 
 /** 武器篩選字串（type=军用武器|property=轻型）→ 顯示文字與符合的基礎武器。 */
-function weaponFilter(ctx: Ctx, filter: string): { label: string; items: Entry[] } {
+export function weaponFilter(data: RulesData, filter: string): { label: string; items: Entry[] } {
   const parts = Object.fromEntries(filter.split('|').map((p) => p.split('=') as [string, string]))
   const cat = parts.type?.includes('军用') ? 'martial' : parts.type?.includes('简易') ? 'simple' : undefined
   const label = `${parts.type ?? '武器'}${parts.property ? `（${parts.property.replace(/;/g, '或')}）` : ''}`
-  const items = ctx.data
+  const items = data
     .list('item')
-    .filter((it) => it.isBaseItem && it.weapon && it.edition === '2024' && (!cat || it.weaponCategory === cat))
+    .filter((it) => it.isBaseItem && isMundaneItem(it) && it.weapon && it.edition === '2024' && (!cat || it.weaponCategory === cat))
   return { label, items }
 }
 
@@ -445,12 +456,12 @@ function processProfField(ctx: Ctx, type: ProfType, list: Json[], prefix: string
       if (type === 'weapon' && k === 'all') continue
       grantProf(ctx, type, normalizeProf(ctx, type, k), origin)
     } else if (k === 'all' && type === 'weapon' && v?.fromFilter) {
-      grantProf(ctx, type, `filter:${weaponFilter(ctx, v.fromFilter).label}`, origin)
+      grantProf(ctx, type, `filter:${weaponFilter(ctx.data, v.fromFilter).label}`, origin)
     } else if (k === 'choose') {
       const slotKey = `${key}:${n++}`
       let options: ChoiceOption[] = []
       if (v.fromFilter && type === 'weapon') {
-        options = weaponFilter(ctx, v.fromFilter).items.map((it) => ({
+        options = weaponFilter(ctx.data, v.fromFilter).items.map((it) => ({
           value: `${it.name}|${it.source}`.toLowerCase(),
           label: profLabel(ctx.data, 'weapon', `${it.name}|${it.source}`),
           entry: it,
@@ -1344,7 +1355,13 @@ function processClasses(ctx: Ctx) {
         if (Array.isArray(sp.toolProficiencies)) processProfField(ctx, 'tool', sp.toolProficiencies, prefix, profOrigin, 'class')
         if (Array.isArray(sp.armorProficiencies)) processProfField(ctx, 'armor', sp.armorProficiencies, prefix, profOrigin, 'class')
         if (Array.isArray(sp.weaponProficiencies)) processProfField(ctx, 'weapon', sp.weaponProficiencies, prefix, profOrigin, 'class')
-        else for (const w of (sp.weapons as string[] | undefined) ?? []) grantProf(ctx, 'weapon', normalizeProf(ctx, 'weapon', w), profOrigin)
+        else
+          for (const w of (sp.weapons as Json[] | undefined) ?? []) {
+            // 物件寫法：{proficiency: "firearms", optional: true}（TCE 奇械師），可選的熟練由 DM 決定，不自動給
+            if (typeof w === 'string') grantProf(ctx, 'weapon', normalizeProf(ctx, 'weapon', w), profOrigin)
+            else if (w?.optional) ctx.out.notes.push({ text: `可選熟練（由 DM 決定）：${profLabel(data, 'weapon', String(w.proficiency))}`, origin: profOrigin })
+            else if (w?.proficiency) grantProf(ctx, 'weapon', normalizeProf(ctx, 'weapon', String(w.proficiency)), profOrigin)
+          }
       }
     }
 

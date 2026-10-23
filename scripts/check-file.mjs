@@ -49,6 +49,7 @@ try {
   await creditsSmoke(page, problems)
   await builderSmoke(page, problems)
   await interactionSmoke(page, problems)
+  await bardToolSmoke(page, problems)
   // 讓延遲載入的資料檔有機會報錯
   await page.waitForTimeout(300)
 } finally {
@@ -72,6 +73,29 @@ async function creditsSmoke(page, problems) {
     await page.click('[data-view="builder"]')
   } catch (err) {
     problems.push(`致謝頁檢查失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
+  }
+}
+
+/**
+ * M7-3：1 級吟遊詩人的工具熟練（任一樂器）不能混入魔法樂器，要有魯特琴。
+ * @param {import('playwright').Page} page
+ * @param {string[]} problems
+ */
+async function bardToolSmoke(page, problems) {
+  try {
+    await page.click('[data-view="builder"]')
+    await page.getByTestId('new-character').click()
+    await page.click('[data-step="class"]')
+    await page.getByTestId('picker-search').fill('Bard')
+    await page.click('[data-id="class|吟游诗人|XPHB"]')
+    // 職業給的熟練選擇在「職業」步驟（規則引擎 step = 'class'）
+    const tools = page.locator('[data-slot^="class|吟游诗人|XPHB:tool"]').first()
+    await tools.waitFor({ timeout: 5000 })
+    const text = await tools.innerText()
+    if (text.includes('吟游诗人乐器') || text.includes('+1')) problems.push('吟遊詩人工具熟練仍列出魔法樂器')
+    if (!text.includes('鲁特琴')) problems.push('吟遊詩人工具熟練沒有魯特琴')
+  } catch (err) {
+    problems.push(`吟遊詩人工具熟練檢查失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }
 }
 
