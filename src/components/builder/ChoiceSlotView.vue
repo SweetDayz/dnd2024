@@ -15,6 +15,12 @@ const store = useCharacterStore()
 const filter = useSourceFilterStore()
 
 const query = ref('')
+/** 選完的長清單預設收合，只顯示已選項目；按「修改」展開 */
+const editing = ref(false)
+const collapsed = computed(() => hasEntries.value && props.choice.done && !props.choice.warnings.length && !editing.value)
+const selectedLabels = computed(() =>
+  props.choice.selected.map((v) => props.choice.options.find((o) => o.value === v)?.label ?? v),
+)
 const openId = ref<string | null>(null)
 
 const hasEntries = computed(() => props.choice.options.some((o) => o.entry))
@@ -86,8 +92,15 @@ function blocked(o: ChoiceOption): boolean {
       </label>
     </div>
 
+    <!-- 已選完的長清單：收合成摘要 -->
+    <div v-else-if="collapsed" class="summary">
+      <span v-for="l in selectedLabels" :key="l" class="picked">{{ l }}</span>
+      <button type="button" class="edit" data-testid="slot-edit" @click="editing = true">修改</button>
+    </div>
+
     <!-- 有條目的選項：可搜尋清單，點名稱展開說明 -->
     <template v-else-if="hasEntries">
+      <button v-if="editing" type="button" class="edit" @click="editing = false">收合</button>
       <input v-if="choice.options.length > 8" v-model="query" class="search" type="search" placeholder="搜尋（中文或英文）" />
       <ul class="entries">
         <li v-for="o in shown" :key="o.value" :class="{ sel: isSelected(o), off: blocked(o) }">
@@ -278,5 +291,28 @@ select,
 }
 .muted {
   color: var(--color-text-muted);
+}
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.picked {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  color: var(--color-accent);
+  font-size: 0.9rem;
+}
+.edit {
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
 }
 </style>

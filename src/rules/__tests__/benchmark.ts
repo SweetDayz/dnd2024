@@ -43,8 +43,15 @@ export function benchmarkLevel1(data: RulesData): Character {
   choose(c, data, (s) => mi(s) && s.key.endsWith(':spells:ability'), ['wis'])
   choose(c, data, (s) => mi(s) && s.type === 'spell' && s.count === 2, ['spell|神导术|XPHB', 'spell|修复术|XPHB'])
   choose(c, data, (s) => mi(s) && s.type === 'spell' && s.count === 1, ['spell|光导箭|XPHB'])
+  // 法師法術（同 DDB）：戲法光亮術、法師之手、冷凍射線；法術書 6 道，準備 4 道
+  choose(c, data, byKey(`${WIZARD}:cantrips`), ['spell|光亮术|XPHB', 'spell|法师之手|XPHB', 'spell|冷冻射线|XPHB'])
+  choose(c, data, byKey(`${WIZARD}:spellbook`), SPELLBOOK)
+  choose(c, data, byKey(`${WIZARD}:prepared`), PREPARED)
   return c
 }
+
+export const SPELLBOOK = ['侦测魔法', '法师护甲', '魔法飞弹', '睡眠术', '雷鸣波', '护盾术'].map((n) => `spell|${n}|XPHB`)
+export const PREPARED = ['法师护甲', '魔法飞弹', '睡眠术', '雷鸣波'].map((n) => `spell|${n}|XPHB`)
 
 export const EVOKER = 'subclass|塑能师|XPHB|法师|XPHB'
 
@@ -52,6 +59,11 @@ export const EVOKER = 'subclass|塑能师|XPHB|法师|XPHB'
 export function benchmarkLevel(data: RulesData, n: number): Character {
   const c = benchmarkLevel1(data)
   while (c.levels.length < n) c.levels.push({ classId: WIZARD, hp: { mode: 'average' } })
-  if (n >= 3) choose(c, data, byKey(`${WIZARD}:subclass`), [EVOKER])
+  if (n >= 3) {
+    choose(c, data, byKey(`${WIZARD}:subclass`), [EVOKER])
+    // 塑能學者：燃燒之手、魔法飛彈（同 DDB）
+    choose(c, data, byKey(`${EVOKER}:spells:0`), ['spell|燃烧之手|XPHB'])
+    choose(c, data, byKey(`${EVOKER}:spells:1`), ['spell|魔法飞弹|XPHB'])
+  }
   return c
 }

@@ -124,6 +124,8 @@ async function builderSmoke(page, problems) {
     await chip('class|法师|XPHB:skill:0', 'investigation')
 
     await pickEntry('background', 'Acolyte', 'background|侍僧|XPHB')
+    const mi = 'background|侍僧|XPHB:feat>feat|魔法学徒；牧师|XPHB:spells'
+    await chip(`${mi}:ability`, 'wis')
     await pickEntry('race', 'Gnome', 'race|侏儒|XPHB')
     await chip('race|侏儒|XPHB:version', 'race|侏儒；岩侏儒血系|XPHB')
     await chip('race|侏儒|XPHB:spells:ability', 'int')
@@ -140,13 +142,20 @@ async function builderSmoke(page, problems) {
     await chip('base:languages', 'dwarvish')
     await chip('base:languages', 'gnomish')
 
-    // 魔法學徒（牧師）的法術：在確認頁的「尚未完成」清單裡選
-    await page.click('[data-step="confirm"]')
-    const mi = 'background|侍僧|XPHB:feat>feat|魔法学徒；牧师|XPHB:spells'
-    await chip(`${mi}:ability`, 'wis')
+    // 法術：魔法學徒（牧師）與法師的戲法、法術書、準備法術
+    await page.click('[data-step="spells"]')
+    const W = 'class|法师|XPHB'
+    for (const n of ['光亮术', '法师之手', '冷冻射线']) await chip(`${W}:cantrips`, `spell|${n}|XPHB`)
+    for (const n of ['侦测魔法', '法师护甲', '魔法飞弹', '睡眠术', '雷鸣波', '护盾术']) await chip(`${W}:spellbook`, `spell|${n}|XPHB`)
+    for (const n of ['法师护甲', '魔法飞弹', '睡眠术', '雷鸣波']) await chip(`${W}:prepared`, `spell|${n}|XPHB`)
     await chip(`${mi}:0`, 'spell|神导术|XPHB')
     await chip(`${mi}:0`, 'spell|修复术|XPHB')
     await chip(`${mi}:1`, 'spell|光导箭|XPHB')
+    const dc = await page.getByTestId('spell-dc').first().innerText()
+    if (dc.trim() !== '13') problems.push(`法術：1 級法術 DC 應為 13，畫面為 ${dc}`)
+    if (!(await page.locator('[data-spell="雷鸣波"] [data-col="hit"]').first().innerText()).includes('13'))
+      problems.push('法術：雷鳴波應顯示體質 DC 13')
+    await page.click('[data-step="confirm"]')
     await page.getByTestId('char-name').fill('基準侏儒法師')
 
     const hp = await page.getByTestId('hp-max').innerText()

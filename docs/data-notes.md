@@ -354,6 +354,14 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 - 兼職施法者等級：資料的 `casterProgression` 有 `full`、`artificer`（半施法無條件進位，XPHB 聖武士／遊俠與奇械師都用這個）、`1/2`（2014 聖武士／遊俠，捨去）、`1/3`（子職：奧法騎士、詭術師、秘術武者）、`pact`（魔契師，另計）。單一施法職業用該職業自己的法術位表；兩個以上才用兼職表。
 - 2024 規則的語言（通用語＋兩種標準語言）不在任何資料欄位，是引擎內建規則；「標準語言」只取 XPHB 的標準語言表（9 種）。
 
+### 12d. 法術（M2c）
+
+- 職業：`cantripProgression`、`preparedSpellsProgression`（2024）、`preparedSpells` 公式字串（2014，例如 `"<$level$> / 2 + <$cha_mod$>"`）、`spellsKnownProgression`（2014 已知法術）、`spellsKnownProgressionFixed`（法師法術書每級新增數）。子職施法者（奧法騎士、詭術師、秘術武者）的這些欄位在子職上。
+- 子職施法者用哪張法術清單**資料沒有寫**，引擎依 PHB 規則固定為法師清單（`src/rules/spells.ts`）。
+- 法術欄位：`time`、`range`（`point`／`cone`／`cube`…＋`distance`）、`components`（`m` 為字串或物件）、`duration`（`concentration`）、`meta.ritual`、`spellAttack`、`savingThrow`（英文全名）、`scalingLevelDice`（戲法升階）、`entriesHigherLevel` 內的 `{@scaledamage 2d8|1-9|1d8}`（升環每環加骰）。基礎傷害取內文第一個 `{@damage}`。
+- 塑能學者這類「免費加入法術書」的子職法術是 `additionalSpells.known`（每個等級一個 `{choose: "level=…|class=法师|school=V"}`）；引擎把它們視為法術書內容，可被準備。
+- 魔法學徒的一環法術資料寫成 `innate.daily`（1/長休），原文說「始終準備」→ 角卡顯示為永遠準備＋1/長休，與 DDB 相同。
+
 ### 12c. 效果自動偵測（M2a 測試結果）
 
 用 XPHB 全部種族特質（含所有血系版本）與 XPHB 起源專長測試（`src/rules/effects.ts`）。

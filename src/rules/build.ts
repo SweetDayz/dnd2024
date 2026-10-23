@@ -13,6 +13,8 @@
 import type { Entry } from '../data/types.ts'
 import { classFeatureRef, subclassFeatureRef } from '../data/classRefs.ts'
 import { ABILITIES, ABILITY_NAME, isAbility, type Ability } from './abilities.ts'
+import { abilityScores } from './derive.ts'
+import { classCastings, classSpellList } from './spells.ts'
 import type { Character } from './character.ts'
 import {
   languageKey,
@@ -134,7 +136,11 @@ export interface SpellGrant {
   origin: Origin
   /** 施法屬性：固定值、`inherit`（沿用職業）、或尚未選擇（undefined） */
   ability?: Ability | 'inherit'
-  mode: 'known' | 'prepared' | 'innate' | 'expanded'
+  /**
+   * known：習得（戲法、種族與專長給的法術）；prepared：永遠準備；innate：天生施法；expanded：擴充職業清單；
+   * spellbook：在法術書裡（未必準備）；class：職業選的已準備／已知法術（佔職業的數量上限）
+   */
+  mode: 'known' | 'prepared' | 'innate' | 'expanded' | 'spellbook' | 'class'
   /** 不耗法術位的施展次數 */
   uses?: { n: number | 'pb'; per: 'long' | 'short' | 'will' }
 }
@@ -625,7 +631,14 @@ function processSensesSpeed(ctx: Ctx, e: Entry, origin: Origin) {
 // 法術（additionalSpells）
 // ---------------------------------------------------------------------------
 
-const SPELL_MODE_LABEL = { known: '習得', prepared: '永遠準備', innate: '天生施法', expanded: '擴充法術表' }
+const SPELL_MODE_LABEL: Record<SpellGrant['mode'], string> = {
+  known: '習得',
+  prepared: '永遠準備',
+  innate: '天生施法',
+  expanded: '擴充法術表',
+  spellbook: '法術書',
+  class: '職業',
+}
 
 /**
  * additionalSpells：
@@ -1305,6 +1318,65 @@ function addSubclassSlot(ctx: Ctx, cls: Entry, info: ClassInfo, origin: Origin) 
 }
 
 // ---------------------------------------------------------------------------
+// 職業法術：戲法、法術書、準備／已知法術
+// ---------------------------------------------------------------------------
+
+function processClassSpells(ctx: Ctx) {
+  const { c, data, out } = ctx
+  const scores = abilityScores(c, out)
+  const mods = Object.fromEntries(ABILITIES.map((a) => [a, scores[a].mod])) as Record<Ability, number>
+  for (const cc of classCastings(out.classes, mods)) {
+    const cls = cc.info.entry
+    const origin: Origin = { type: cc.from === cls ? 'class' : 'subclass', name: cc.from.name, entry: cc.from, level: c.levels.length }
+    const opts = (min: number, max: number) => classSpellList(data, cc.listName, min, max).map((sp) => entryOption(sp))
+    const grant = (slotKey: string, ids: string[], mode: SpellGrant['mode']) =>
+      ids.forEach((id, i) => out.spells.push({ key: `${slotKey}:${i}`, spellId: id, slotKey, origin, ...(cc.ability ? { ability: cc.ability } : {}), mode }))
+
+    if (cc.cantrips > 0) {
+      const key = `${cls.id}:cantrips`
+      grant(key, addSlot(ctx, { key, type: 'spell', label: `${cc.from.name}戲法（選 ${cc.cantrips}）`, origin, step: 'spells', count: cc.cantrips, options: opts(0, 0) }), 'known')
+    }
+    if (cc.maxSpellLevel < 1) continue
+    if (cc.spellbook !== undefined) {
+      // 法術書：子職免費加入法術書的法術（例如塑能學者）也算在書裡，可以準備
+      const free = out.spells.filter(
+        (g) => g.origin.type === 'subclass' && g.origin.entry?.id === cc.info.subclass?.id && g.mode === 'known' && g.spellId && Number(data.get(g.spellId)?.level) > 0,
+      )
+      for (const g of free) g.mode = 'spellbook'
+      const key = `${cls.id}:spellbook`
+      const book = addSlot(ctx, {
+        key,
+        type: 'spell',
+        label: `法術書（共 ${cc.spellbook} 道，1–${cc.maxSpellLevel} 環）`,
+        origin,
+        step: 'spells',
+        count: cc.spellbook,
+        options: opts(1, cc.maxSpellLevel),
+      })
+      const prepKey = `${cls.id}:prepared`
+      const inBook = [...book, ...free.map((g) => g.spellId!)]
+      const prepared = addSlot(ctx, {
+        key: prepKey,
+        type: 'spell',
+        label: `準備法術（從法術書選 ${cc.prepared ?? 0}）`,
+        origin,
+        step: 'spells',
+        count: cc.prepared ?? 0,
+        options: [...new Set(inBook)].map((id) => data.get(id)).filter((e): e is Entry => !!e).map((e) => entryOption(e)),
+      })
+      grant(key, book.filter((id) => !prepared.includes(id)), 'spellbook')
+      grant(prepKey, prepared, 'class')
+      for (const g of free) if (prepared.includes(g.spellId!)) g.mode = 'class'
+    } else if (cc.known !== undefined || cc.prepared !== undefined) {
+      const n = cc.known ?? cc.prepared ?? 0
+      const key = `${cls.id}:${cc.known !== undefined ? 'known' : 'prepared'}`
+      const label = cc.known !== undefined ? '已知法術' : '準備法術'
+      grant(key, addSlot(ctx, { key, type: 'spell', label: `${cc.from.name}${label}（選 ${n}，1–${cc.maxSpellLevel} 環）`, origin, step: 'spells', count: n, options: opts(1, cc.maxSpellLevel) }), 'class')
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 重複熟練
 // ---------------------------------------------------------------------------
 
@@ -1394,6 +1466,7 @@ export function buildCharacter(c: Character, data: RulesData): Build {
   processBackground(ctx)
   processRace(ctx)
   processBaseLanguages(ctx)
+  processClassSpells(ctx)
   resolveDuplicates(ctx)
   resolveExpertiseOptions(ctx)
   return out
