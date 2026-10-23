@@ -1,5 +1,6 @@
 <script setup lang="ts">
-// 第 5 步：屬性值。三種產生方式擇一（4d6 去最低／標準陣列／點數購買），再加上背景的 +2/+1 或 +1/+1/+1。
+// 第 5 步：屬性值。四種產生方式擇一（標準陣列／點數購買／4d6 去最低／自填），再加上背景的 +2/+1 或 +1/+1/+1。
+// 自填：數字完全由玩家輸入（1～30），不檢查總和；審卡報告會在警示區提示 DM。
 // 擲骰一律允許重骰，每次結果都記在 rollLog（存檔裡），可以展開查看。
 import { computed } from 'vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
@@ -25,17 +26,33 @@ const METHODS: { id: AbilityMethod; label: string }[] = [
   { id: 'standard', label: '標準陣列' },
   { id: 'pointbuy', label: '點數購買' },
   { id: 'roll', label: '4d6 去最低' },
+  { id: 'manual', label: '自填' },
 ]
+/** 自填的範圍：D&D 屬性值上下限 */
+const MANUAL_MIN = 1
+const MANUAL_MAX = 30
 
 function setMethod(m: AbilityMethod) {
   store.update((ch) => {
     ch.abilityMethod = m
-    ch.baseScores = m === 'pointbuy' ? { str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8 } : emptyScores()
+    // 切到自填時保留目前的數字當起點；其他方法重新開始
+    if (m !== 'manual') ch.baseScores = m === 'pointbuy' ? { str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8 } : emptyScores()
   })
 }
 
 function setScore(a: Ability, v: string) {
   store.update((ch) => (ch.baseScores[a] = v === '' ? null : Number(v)))
+}
+
+// 自填：空白＝未填；超出 1～30 或不是整數就不存（輸入框會還原成原本的值）
+function setManual(a: Ability, el: HTMLInputElement) {
+  const raw = el.value.trim()
+  const v = Number(raw)
+  if (raw !== '' && (!Number.isInteger(v) || v < MANUAL_MIN || v > MANUAL_MAX)) {
+    el.value = String(c.value.baseScores[a] ?? '')
+    return
+  }
+  setScore(a, raw)
 }
 
 // 標準陣列：每個數字只能用一次
@@ -106,6 +123,9 @@ const problems = computed(() => {
     <p v-else-if="c.abilityMethod === 'pointbuy'" class="muted">
       每項從 8 開始，最高 15；已用 <strong :class="{ over: spent > POINT_BUY_BUDGET }">{{ spent }}</strong>／{{ POINT_BUY_BUDGET }} 點。
     </p>
+    <p v-else-if="c.abilityMethod === 'manual'" class="muted">
+      直接輸入每項的基礎值（{{ MANUAL_MIN }}～{{ MANUAL_MAX }}），不檢查總和。審卡報告會註明屬性值為自填，請和 DM 確認。
+    </p>
     <div v-else class="roll">
       <button type="button" class="primary" data-testid="roll-abilities" @click="rollAll">
         {{ c.rolledPool.length ? '重骰 6 組' : '擲 6 組 4d6（去最低）' }}
@@ -148,6 +168,17 @@ const problems = computed(() => {
               <strong>{{ c.baseScores[a] ?? 8 }}</strong>
               <button type="button" @click="bump(a, 1)">＋</button>
             </span>
+            <input
+              v-else-if="c.abilityMethod === 'manual'"
+              type="number"
+              class="manual"
+              :min="MANUAL_MIN"
+              :max="MANUAL_MAX"
+              step="1"
+              :value="c.baseScores[a] ?? ''"
+              data-testid="manual-score"
+              @change="setManual(a, $event.target as HTMLInputElement)"
+            />
             <select v-else :value="c.baseScores[a] ?? ''" :disabled="!c.rolledPool.length" @change="setScore(a, ($event.target as HTMLSelectElement).value)">
               <option value="">—</option>
               <option v-for="v in poolValues" :key="v" :value="v" :disabled="!poolLeft(a, v) && c.baseScores[a] !== v">{{ v }}</option>
@@ -196,6 +227,15 @@ const problems = computed(() => {
 }
 .pb button {
   padding: 0 var(--space-2);
+}
+.manual {
+  width: 4.5em;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: inherit;
+  font: inherit;
 }
 .pb {
   display: inline-flex;

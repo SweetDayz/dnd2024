@@ -17,7 +17,7 @@ import {
 import type { Build, Origin, Step } from './build.ts'
 import type { AbilityMethod, Character } from './character.ts'
 
-export const METHOD_LABEL: Record<AbilityMethod, string> = { standard: '標準陣列', pointbuy: '點數購買', roll: '4d6' }
+export const METHOD_LABEL: Record<AbilityMethod, string> = { standard: '標準陣列', pointbuy: '點數購買', roll: '4d6', manual: '自填' }
 
 const ORIGIN_LABEL: Record<Origin['type'], string> = {
   race: '種族',

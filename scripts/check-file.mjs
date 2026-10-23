@@ -52,6 +52,7 @@ try {
   await bardToolSmoke(page, problems)
   await multiclassSmoke(page, problems)
   await featRepeatSmoke(page, problems)
+  await manualAbilitySmoke(page, problems)
   // 讓延遲載入的資料檔有機會報錯
   await page.waitForTimeout(300)
 } finally {
@@ -213,6 +214,37 @@ async function featRepeatSmoke(page, problems) {
     if (!row.includes('此專長不可重複')) problems.push(`專長：6 級妖精觸碰沒有顯示不可重複的原因：${row.replace(/\s+/g, ' ')}`)
   } catch (err) {
     problems.push(`不可重複專長檢查失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
+  }
+}
+
+/**
+ * 屬性值「自填」：填一組非標準數字，屬性總覽顯示該值；超出 1～30 的輸入不會被存。
+ * @param {import('playwright').Page} page
+ * @param {string[]} problems
+ */
+async function manualAbilitySmoke(page, problems) {
+  const scores = { str: '18', dex: '17', con: '16', int: '9', wis: '8', cha: '20' }
+  try {
+    await page.click('[data-view="builder"]')
+    await page.getByTestId('new-character').click()
+    await page.click('[data-step="abilities"]')
+    await page.click('[data-method="manual"]')
+    for (const [a, v] of Object.entries(scores)) {
+      const input = page.locator(`tr[data-ability="${a}"] [data-testid="manual-score"]`)
+      await input.fill(v)
+      await input.dispatchEvent('change')
+    }
+    const ov = page.getByTestId('ability-overview')
+    for (const [a, v] of Object.entries(scores)) {
+      const got = (await ov.locator(`li[data-ability="${a}"] .score`).innerText()).trim()
+      if (got !== v) problems.push(`自填屬性：${a} 應為 ${v}，畫面為 ${got}`)
+    }
+    const cha = page.locator('tr[data-ability="cha"] [data-testid="manual-score"]')
+    await cha.fill('31')
+    await cha.dispatchEvent('change')
+    if ((await ov.locator('li[data-ability="cha"] .score').innerText()).trim() !== '20') problems.push('自填屬性：超出 30 的輸入不應被存')
+  } catch (err) {
+    problems.push(`自填屬性檢查失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }
 }
 

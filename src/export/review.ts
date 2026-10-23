@@ -231,6 +231,9 @@ export function buildReviewModel(x: ExportInput): ReviewModel {
       src: badge({ source: 'XPHB', page: 362 }),
     })
   }
+  if (c.abilityMethod === 'manual') {
+    warn({ kind: '屬性值', text: '屬性值為自填，未經標準陣列／點數購買／擲骰，請 DM 確認基礎值' })
+  }
   const breakdown = abilityBreakdown(c, b)
   for (const w of breakdown.warnings) warn({ kind: '屬性值', text: w })
   for (const a of ABILITIES) {

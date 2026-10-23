@@ -11,7 +11,8 @@ import { ABILITIES, type Ability } from './abilities.ts'
 
 export const SCHEMA_VERSION = 1
 
-export type AbilityMethod = 'roll' | 'standard' | 'pointbuy'
+/** manual＝使用者自填（不檢查總和或陣列，審卡報告會提示 DM） */
+export type AbilityMethod = 'roll' | 'standard' | 'pointbuy' | 'manual'
 
 /** 一次擲骰的紀錄（重骰時新增一筆，舊的保留）。 */
 export interface RollRecord {
