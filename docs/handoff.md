@@ -10,7 +10,8 @@
 - **M3 暫緩**（輸出品質不足，審卡改由 M6）；匯出鈕保留為灰色「匯出試算表（TODO）」。
 - **M4 完成**（2026-10-23，`/auto M4`）：來源顯示縮寫（`src/data/sourceDisplay.ts`）、通用重印規則（`src/data/visibility.ts`、`RulesData.selectable`／`supersededBy`、`Build.legacyPicks`）、共用選單搜尋修正、屬性總覽（`src/rules/abilityBreakdown.ts`、`AbilityOverview.vue`）、資料稽核（`scripts/audit-data.ts` → `docs/data-audit.md`）與語言修正、角卡版面與技能區（`src/data/skillOrder.ts`）。Vitest 161 passed、`check:file` 0 errors。
 - **M5 完成**（2026-10-23，`/auto M5`）：建置期法術索引（`scripts/lib/spellIndex.ts` → spell 的 `idx`、`origins`）、三態篩選純函式（`src/data/spellFilter.ts`）、`ChoiceSlot.spell`（`SpellScope`）與 `spellScopeReason`／`otherHolders`（`src/rules/spells.ts`）、法術選擇畫面（`src/components/spells/`：分頁、篩選面板、可排序表格、詳情、右側已學會的法術）、UI 偏好 store（`src/stores/spellPrefs.ts`）。Vitest 189 passed、`check:file` 0 errors。
-- **下一步：M6（審卡報告）**，兩者都以 M4 為前置；之後實作 data-notes §13 的 (a)+(b) 混合方案。
+- **M6 完成**（2026-10-23，`/auto M6`）：審卡報告（`src/export/review.ts` 資料模型、`reviewHtml.ts` 單一 HTML＋列印 CSS、`components/sheet/ReviewReport.vue` 預覽）；報告內嵌存檔，`importCharacter` 可直接吃 HTML；共用 `composables/useExportInput.ts`、`export/download.ts`。Vitest 205 passed、`check:file` 0 errors。
+- **下一步：等規畫者寫 M7 以後的任務檔**，見 `docs/handoff-planner.md`。
 - 使用者偏好（auto-memory 已有）：`/verify` 通過並 commit 後可直接 `git push`，不用問；force push／改歷史仍要問。
 
 ## 2. 新環境啟動
