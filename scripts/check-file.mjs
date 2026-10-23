@@ -67,7 +67,7 @@ async function interactionSmoke(page, problems) {
   const waitCount = () => page.getByTestId('count').getByText('目前書目下共').waitFor({ timeout: 10000 })
   try {
     await page.click('[data-view="browser"]')
-    for (const tab of ['race', 'background', 'class', 'feat', 'spell', 'item', 'optionalfeature']) {
+    for (const tab of ['race', 'background', 'class', 'feat', 'spell', 'item', 'optionalfeature', 'language']) {
       await page.click(`[data-tab="${tab}"]`)
       await waitCount()
       const n = await count()
@@ -173,6 +173,12 @@ async function builderSmoke(page, problems) {
 
     await page.click('[data-step="languages"]')
     if ((await ov.locator('li[data-ability="int"] .score').innerText()).trim() !== '16') problems.push('其他步驟也要看得到屬性總覽（智力 16）')
+    // M4-5：語言預設只列標準語言；打開「顯示稀有與其他語言」才出現德魯伊語等
+    if (await slot('base:languages').locator('[data-value="draconic"]').count() === 0) problems.push('語言：標準語言（龍語）沒有列出')
+    if (await slot('base:languages').locator('[data-value="abyssal"]').count()) problems.push('語言：稀有語言（深淵語）預設不應列出')
+    await slot('base:languages').getByTestId('show-restricted').locator('input').check()
+    if (!(await slot('base:languages').locator('[data-value="abyssal"]').count())) problems.push('語言：打開開關後應列出稀有語言')
+    await slot('base:languages').getByTestId('show-restricted').locator('input').uncheck()
     await chip('base:languages', 'dwarvish')
     await chip('base:languages', 'gnomish')
 

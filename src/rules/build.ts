@@ -19,6 +19,9 @@ import { canMulticlass } from './multiclass.ts'
 import { classCastings, classSpellList } from './spells.ts'
 import type { Character } from './character.ts'
 import {
+  LANGUAGE_TYPE_LABEL,
+  LANGUAGE_TYPES,
+  languageType,
   canPick,
   languageKey,
   languageList,
@@ -89,6 +92,10 @@ export interface ChoiceOption {
   disabled?: string
   /** 附註（例如「TCE 可選規則」） */
   note?: string
+  /** 分組標題（例如語言的「標準」「稀有」）；有的話畫面依組顯示 */
+  group?: string
+  /** 預設不列出、要打開欄位的 restrictedToggle 才顯示（例如稀有語言需 DM 同意） */
+  restricted?: boolean
 }
 
 export interface ChoiceSlot {
@@ -103,6 +110,8 @@ export interface ChoiceSlot {
   weights?: number[]
   /** 屬性加值欄位：加值的上限（一般 20，傳奇恩惠 30） */
   abilityMax?: number
+  /** 有 restricted 選項時，畫面上「顯示這些選項」開關的文字 */
+  restrictedToggle?: string
   options: ChoiceOption[]
   /** 目前有效的選擇（已去掉不在選項中的舊值） */
   selected: string[]
@@ -1111,11 +1120,28 @@ function processBackground(ctx: Ctx) {
   })
 }
 
-/** 2024 規則：每個角色會通用語，再選兩種標準語言。 */
+/** 排序用：2024 核心規則書（XPHB）的語言表排前面，其他書照資料順序 */
+const sourceRank = (e: Entry) => (e.source === 'XPHB' ? 0 : 1)
+const languageOrder = (l: Entry) => LANGUAGE_TYPES.indexOf(languageType(l)) * 2 + sourceRank(l)
+
+/**
+ * 2024 規則：每個角色會通用語，再選兩種標準語言。
+ * 選項列出目前書目的全部語言，依資料的 type 分組；標準語言以外（稀有、異國、秘密、沒有 type 的「其他」）
+ * 預設不列出，需 DM 同意才打開。
+ */
 function processBaseLanguages(ctx: Ctx) {
   const origin: Origin = { type: 'rule', name: '2024 角色起源：語言', level: 1 }
   grantProf(ctx, 'language', 'common', origin)
-  const options = (profOptions(ctx, 'language', 'anyStandard') ?? []).filter((o) => o.value !== 'common')
+  const options: ChoiceOption[] = languageList(ctx.data)
+    .filter((l) => languageKey(l) !== 'common')
+    .sort((a, b) => languageOrder(a) - languageOrder(b))
+    .map((l) => ({
+      value: languageKey(l),
+      label: profLabel(ctx.data, 'language', languageKey(l)),
+      entry: l,
+      group: LANGUAGE_TYPE_LABEL[languageType(l)],
+      ...(languageType(l) === 'standard' ? {} : { restricted: true }),
+    }))
   const sel = addSlot(ctx, {
     key: 'base:languages',
     type: 'language',
@@ -1124,6 +1150,7 @@ function processBaseLanguages(ctx: Ctx) {
     step: 'languages',
     count: 2,
     options,
+    restrictedToggle: '顯示稀有與其他語言（需 DM 同意）',
   })
   for (const v of sel) grantProf(ctx, 'language', v, origin, 'base:languages')
 }
@@ -1236,6 +1263,10 @@ function addClassFeature(ctx: Ctx, f: Entry, category: 'class' | 'subclass', ori
     slotKeys = [...slotKeys, key]
   }
   ctx.out.features.push({ key: f.id, entry: f, category, origin, slotKeys })
+  // 特性本身就是一種語言（德魯伊語、盜賊黑話）：資料沒有結構化欄位，但特性與語言的英文名相同 →
+  // 自動學會，不佔語言選擇名額。
+  const lang = f.engName ? languageList(ctx.data).find((l) => l.engName === f.engName) : undefined
+  if (lang) grantProf(ctx, 'language', languageKey(lang), origin)
   // 子職的「標題特性」底下常用參照列出同級的小特性（例如塑能學者、強效戲法），各自列成特性
   for (const sub of referencedFeatures(ctx, f)) {
     ctx.out.features.push({ key: sub.id, entry: sub, category, origin, slotKeys: [] })

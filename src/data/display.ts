@@ -2,7 +2,9 @@
  * 列表上每筆條目的簡短說明（法術環位、物品稀有度、專長分類…）。純函式。
  * 用詞沿用上游簡體；不認得的代碼直接顯示原代碼，避免猜錯。
  */
+import { LANGUAGE_TYPE_LABEL, languageType } from '../rules/data.ts'
 import { sourceAbbr } from './sourceDisplay.ts'
+import { stripTags } from './tags.ts'
 import { schoolName, spellLevelText } from './summary.ts'
 import type { Entry } from './types.ts'
 
@@ -63,6 +65,12 @@ export function metaLine(e: Entry): string {
       return e.category ? (FEAT_CATEGORY[String(e.category)] ?? String(e.category)) : ''
     case 'optionalfeature':
       return ((e.featureType as string[] | undefined) ?? []).map(featureTypeName).join('、')
+    case 'language': {
+      const parts = [`${LANGUAGE_TYPE_LABEL[languageType(e)]}語言`]
+      const speakers = Array.isArray(e.typicalSpeakers) ? (e.typicalSpeakers as string[]).map(stripTags).join('、') : ''
+      if (speakers) parts.push(`使用者：${speakers}`)
+      return parts.join('・')
+    }
     case 'subclass':
       return `${e.className}（${sourceAbbr(String(e.classSource))}）`
     default:

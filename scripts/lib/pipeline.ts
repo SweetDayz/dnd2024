@@ -35,9 +35,32 @@ export interface UnresolvedReprint {
   reason: 'target-not-whitelisted' | 'target-missing'
 }
 
+/**
+ * 被管線丟掉的條目與原因：
+ *   not-whitelisted  來源不在白名單（src/data/sourceGroups.ts）
+ *   parent-missing   子條目（亞種、子職、職業／子職特性）的母條目沒有被保留
+ *   duplicate        同類別裡「名稱＋來源（＋附加欄位）」重複，保留第一筆
+ * `_copy` 解析失敗會讓建置直接中止（throw），所以不會有靜默丟棄。
+ */
+export type DropReason = 'not-whitelisted' | 'parent-missing' | 'duplicate'
+
+export interface DropRecord {
+  kind: EntryKind
+  name: string
+  source: string
+  reason: DropReason
+  detail?: string
+}
+
 export interface BuildReport {
   reprintUnresolved: UnresolvedReprint[]
+  /** 解析 `_copy` 之後、過濾之前的條目數：kind → 來源 → 數量 */
+  rawCounts?: Partial<Record<EntryKind, Record<string, number>>>
+  dropped?: DropRecord[]
 }
+
+/** 建一個空的報告（build-data 與測試用）。 */
+export const emptyReport = (): Required<BuildReport> => ({ reprintUnresolved: [], rawCounts: {}, dropped: [] })
 
 /** 頁碼補丁的鍵：kind|英文名|來源|等級（只有職業／子職特性用等級區分）。 */
 export function patchKey(kind: string, engName: string, source: string, level?: unknown): string {
@@ -134,29 +157,39 @@ export function buildDataset(raw: RawInput, opts: BuildOptions): Dataset {
     ...(Object.keys(resolved) as EntryKind[]),
   ]
   const kept: Partial<Record<EntryKind, Json[]>> = {}
+  const report = opts.report
+  const drop = (kind: EntryKind, e: Json, reason: DropReason, detail?: string) =>
+    report?.dropped?.push({ kind, name: String(e.name ?? ''), source: canon(e.source), reason, ...(detail ? { detail } : {}) })
   for (const kind of new Set(order)) {
     const arr = resolved[kind]
     if (!arr) continue
-    let list = arr.filter((e) => isAllowed(e.source))
+    if (report?.rawCounts) {
+      const counts: Record<string, number> = (report.rawCounts[kind] ??= {})
+      for (const e of arr) counts[canon(e.source)] = (counts[canon(e.source)] ?? 0) + 1
+    }
+    let list = arr.filter((e) => isAllowed(e.source) || (drop(kind, e, 'not-whitelisted'), false))
+    const keepIf = (has: (e: Json) => boolean, parent: (e: Json) => string) =>
+      (list = list.filter((e) => has(e) || (drop(kind, e, 'parent-missing', parent(e)), false)))
     if (kind === 'subrace') {
       const races = new Set((kept.race ?? []).map(KEY.default!))
-      list = list.filter((e) => races.has(`${e.raceName}|${low(e.raceSource)}`))
+      keepIf((e) => races.has(`${e.raceName}|${low(e.raceSource)}`), (e) => `種族 ${e.raceName}|${e.raceSource}`)
     } else if (kind === 'subclass' || kind === 'classFeature') {
       const classes = new Set((kept.class ?? []).map(KEY.default!))
-      list = list.filter((e) => classes.has(`${e.className}|${low(e.classSource)}`))
+      keepIf((e) => classes.has(`${e.className}|${low(e.classSource)}`), (e) => `職業 ${e.className}|${e.classSource}`)
     } else if (kind === 'subclassFeature') {
       const subs = new Set(
         (kept.subclass ?? []).map((s) => `${s.shortName}|${low(s.source)}|${s.className}|${low(s.classSource)}`),
       )
-      list = list.filter((e) =>
-        subs.has(`${e.subclassShortName}|${low(e.subclassSource)}|${e.className}|${low(e.classSource)}`),
+      keepIf(
+        (e) => subs.has(`${e.subclassShortName}|${low(e.subclassSource)}|${e.className}|${low(e.classSource)}`),
+        (e) => `子職 ${e.subclassShortName}|${e.subclassSource}（${e.className}）`,
       )
     }
     // 同類別重複（例如物品與基礎物品同名同源）時保留第一筆
     const seen = new Set<string>()
     kept[kind] = list.filter((e) => {
       const k = keyOf(kind)(e)
-      if (seen.has(k)) return false
+      if (seen.has(k)) return (drop(kind, e, 'duplicate', k), false)
       seen.add(k)
       return true
     })

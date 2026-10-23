@@ -10,55 +10,20 @@ import { resolve } from 'node:path'
 import { SOURCE_WHITELIST } from '../src/data/sourceGroups.ts'
 import { DATA_FILES } from '../src/data/types.ts'
 import { versionWarnings } from './lib/copy.ts'
-import { buildDataset, type BuildReport, type RawInput } from './lib/pipeline.ts'
-import { readRaw, type Json } from './lib/raw.ts'
+import { auditData } from './audit-data.ts'
+import { buildDataset, emptyReport } from './lib/pipeline.ts'
+import { readRawInput } from './lib/rawInput.ts'
+import { readRaw } from './lib/raw.ts'
 import { buildSourceTable } from './lib/sources.ts'
 
 const OUT = resolve('public/data')
 
 const sources = buildSourceTable(readRaw('books.json').book, readRaw('adventures.json').adventure)
 
-const races = readRaw('races.json')
-const itemsBase = readRaw('items-base.json')
-const items = readRaw('items.json')
-const conditions = readRaw('conditionsdiseases.json')
-
-const spellFiles: string[] = Object.values(readRaw('spells/index.json'))
-// 協力者（sidekick）不是玩家職業，不打包。
-const classFiles: string[] = Object.values<string>(readRaw('class/index.json')).filter((f) => !f.includes('sidekick'))
-const classData: Json[] = classFiles.map((f) => readRaw(`class/${f}`))
-const fromClasses = (k: string) => classData.flatMap((c) => c[k] ?? [])
-
-const raw: RawInput = {
-  race: races.race,
-  subrace: races.subrace,
-  background: readRaw('backgrounds.json').background,
-  feat: readRaw('feats.json').feat,
-  optionalfeature: readRaw('optionalfeatures.json').optionalfeature,
-  baseitem: itemsBase.baseitem,
-  item: items.item,
-  itemGroup: items.itemGroup,
-  magicvariant: readRaw('magicvariants.json').magicvariant,
-  spell: spellFiles.flatMap((f) => readRaw(`spells/${f}`).spell),
-  spellLookup: readRaw('generated/gendata-spell-source-lookup.json'),
-  class: fromClasses('class'),
-  subclass: fromClasses('subclass'),
-  classFeature: fromClasses('classFeature'),
-  subclassFeature: fromClasses('subclassFeature'),
-  language: readRaw('languages.json').language,
-  skill: readRaw('skills.json').skill,
-  condition: conditions.condition,
-  disease: conditions.disease,
-  status: conditions.status,
-  variantrule: readRaw('variantrules.json').variantrule,
-  sense: readRaw('senses.json').sense,
-  action: readRaw('actions.json').action,
-  itemProperty: itemsBase.itemProperty,
-  itemMastery: itemsBase.itemMastery,
-}
+const { input: raw, excluded } = readRawInput()
 
 const pagePatches = JSON.parse(readFileSync(resolve('scripts/data/page-patches.json'), 'utf8')).patches
-const report: BuildReport = { reprintUnresolved: [] }
+const report = emptyReport()
 const dataset = buildDataset(raw, { whitelist: SOURCE_WHITELIST, sources, pagePatches, report })
 
 mkdirSync(OUT, { recursive: true })
@@ -96,13 +61,10 @@ for (const [kind, list] of Object.entries(dataset)) {
   console.log(`  ${kind.padEnd(16)} ${String(list.length).padStart(5)}  (已被重印 ${reprinted}${tce ? `、TCE 可選 ${tce}` : ''})`)
 }
 
-const missing = report.reprintUnresolved.filter((u) => u.reason === 'target-missing')
-console.log(
-  `重印目標解析不到：${report.reprintUnresolved.length}（目標書不在白名單 ${report.reprintUnresolved.length - missing.length}、目標書在白名單但找不到條目 ${missing.length}）`,
-)
-for (const u of missing) console.log(`  ${u.id} → ${u.ref}`)
-
 if (versionWarnings.length) {
   console.log(`_versions 展開警告（${versionWarnings.length}，見 docs/data-notes.md §3）：`)
   for (const w of versionWarnings) console.log(`  ${w}`)
 }
+
+// 資料完整性稽核：寫 docs/data-audit.md，終端機只印摘要
+auditData({ report, dataset, sources, excluded, version: readFileSync(resolve('raw/VERSION'), 'utf8') })

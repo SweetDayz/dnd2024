@@ -116,6 +116,21 @@ function makeLanguageList(data: RulesData): Entry[] {
 
 export const languageKey = (l: Entry) => (l.engName ?? l.name).toLowerCase()
 
+/** 語言分類：依資料的 type；沒有 type 的（多半是怪物或設定書的語言）歸為「其他」。 */
+export const LANGUAGE_TYPES = ['standard', 'rare', 'exotic', 'secret', 'other'] as const
+export type LanguageType = (typeof LANGUAGE_TYPES)[number]
+export const LANGUAGE_TYPE_LABEL: Record<LanguageType, string> = {
+  standard: '標準',
+  rare: '稀有',
+  exotic: '異國',
+  secret: '秘密',
+  other: '其他',
+}
+export function languageType(l: Entry): LanguageType {
+  const t = String(l.type ?? '')
+  return (LANGUAGE_TYPES as readonly string[]).includes(t) ? (t as LanguageType) : 'other'
+}
+
 /** 工具類物品的分類代碼（物品 type 的前段）。 */
 export const TOOL_TYPES: Record<string, string> = {
   AT: '工匠工具',

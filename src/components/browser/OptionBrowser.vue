@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue'
 import type { EntryKind } from '@/data/ids'
 import { entryMatches, sourceAbbr } from '@/data/sourceDisplay'
 import { schoolName, spellLevelText } from '@/data/summary'
+import { LANGUAGE_TYPE_LABEL, LANGUAGE_TYPES, languageType } from '@/rules/data'
 import type { DataFileName, Entry, SpellClassRef } from '@/data/types'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
@@ -26,6 +27,7 @@ const TABS: Tab[] = [
   { id: 'spell', label: '法術', files: ['spells', 'classes'] },
   { id: 'item', label: '物品', files: ['items'] },
   { id: 'optionalfeature', label: '可選特性', files: ['optionalfeatures'] },
+  { id: 'language', label: '語言', files: ['rules'] },
 ]
 const PAGE = 60
 
@@ -39,6 +41,7 @@ const limit = ref(PAGE)
 const spellLevel = ref<string>('')
 const spellSchool = ref<string>('')
 const spellClass = ref<string>('')
+const langType = ref<string>('')
 /** 這個分頁暫時顯示重印舊版（換分頁就恢復） */
 const revealLegacy = ref(false)
 watch(tabId, () => (revealLegacy.value = false))
@@ -50,7 +53,7 @@ watch(
   },
   { immediate: true },
 )
-watch([tabId, query, spellLevel, spellSchool, spellClass, revealLegacy, () => filter.state], () => (limit.value = PAGE))
+watch([tabId, query, spellLevel, spellSchool, spellClass, langType, revealLegacy, () => filter.state], () => (limit.value = PAGE))
 
 const loaded = computed(() => tab.value.files.every((f) => catalog.isLoaded(f)))
 
@@ -91,11 +94,15 @@ const results = computed(() => {
     if (spellSchool.value) list = list.filter((e) => e.school === spellSchool.value)
     if (spellClass.value) list = list.filter((e) => spellHasClass(e, spellClass.value))
   }
+  if (tabId.value === 'language' && langType.value) list = list.filter((e) => languageType(e) === langType.value)
   return [...list].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN') || a.source.localeCompare(b.source))
 })
 
 const filtered = computed(
-  () => !!query.value.trim() || (tabId.value === 'spell' && !!(spellLevel.value || spellSchool.value || spellClass.value)),
+  () =>
+    !!query.value.trim() ||
+    (tabId.value === 'spell' && !!(spellLevel.value || spellSchool.value || spellClass.value)) ||
+    (tabId.value === 'language' && !!langType.value),
 )
 
 function subracesOf(race: Entry): Entry[] {
@@ -138,6 +145,10 @@ function subracesOf(race: Entry): Entry[] {
           <option v-for="c in classOptions" :key="c.key" :value="c.key">{{ c.label }}</option>
         </select>
       </template>
+      <select v-if="tabId === 'language'" v-model="langType" data-testid="language-type">
+        <option value="">全部分類</option>
+        <option v-for="t in LANGUAGE_TYPES" :key="t" :value="t">{{ LANGUAGE_TYPE_LABEL[t] }}</option>
+      </select>
     </div>
 
     <p class="count" data-testid="count">

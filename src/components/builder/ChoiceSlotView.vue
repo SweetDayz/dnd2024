@@ -45,8 +45,13 @@ const legacyHidden = computed(() => props.choice.options.filter((o) => isLegacy(
 const selectedLegacy = computed(() =>
   props.choice.options.filter((o) => isSelected(o) && o.entry && filter.superseded(o.entry)).map((o) => o.label),
 )
+// 受限選項（例如稀有語言，需 DM 同意）：預設不列出，打開欄位的開關才顯示；已選的一定留著
+const showRestricted = ref(false)
+const restrictedCount = computed(() => props.choice.options.filter((o) => o.restricted).length)
 const base = computed(() =>
-  revealLegacy.value ? props.choice.options : props.choice.options.filter((o) => !isLegacy(o) || isSelected(o)),
+  props.choice.options.filter(
+    (o) => isSelected(o) || ((revealLegacy.value || !isLegacy(o)) && (showRestricted.value || !o.restricted)),
+  ),
 )
 
 /** 點「已有新版」：展開新版的說明 */
@@ -69,6 +74,17 @@ const matchOption = (o: ChoiceOption) =>
   !!o.entry?.engName?.toLowerCase().includes(q.value) ||
   o.value.toLowerCase().includes(q.value)
 const shown = computed(() => base.value.filter(matchOption))
+/** 依選項的 group 分組（保持原順序）；沒有 group 的選項整個是一組無標題 */
+const grouped = computed(() => {
+  const out: { name: string; items: ChoiceOption[] }[] = []
+  for (const o of shown.value) {
+    const name = o.group ?? ''
+    const g = out[out.length - 1]
+    if (g && g.name === name) g.items.push(o)
+    else out.push({ name, items: [o] })
+  }
+  return out
+})
 const selectedOptions = computed(() =>
   props.choice.selected.filter(Boolean).map((v) => props.choice.options.find((o) => o.value === v) ?? { value: v, label: v }),
 )
@@ -156,10 +172,13 @@ function blocked(o: ChoiceOption): boolean {
           <button type="button" class="x" :title="`取消「${o.label}」`" :data-unpick="o.value" @click="toggle(o as ChoiceOption)">×</button>
         </span>
       </div>
-      <div v-if="searchable || legacyHidden || editing" class="tools">
+      <div v-if="searchable || legacyHidden || editing || (choice.restrictedToggle && restrictedCount)" class="tools">
         <button v-if="editing" type="button" class="edit" @click="editing = false">收合</button>
         <input v-if="searchable" v-model="query" class="search" type="search" placeholder="搜尋（中文或英文）" data-testid="slot-search" />
         <LegacyHint v-model="revealLegacy" :hidden="legacyHidden" />
+        <label v-if="choice.restrictedToggle && restrictedCount" class="restricted" data-testid="show-restricted">
+          <input v-model="showRestricted" type="checkbox" /> {{ choice.restrictedToggle }}
+        </label>
       </div>
       <p v-if="q && hiddenSelected" class="muted hidden-sel" data-testid="hidden-selected">另有 {{ hiddenSelected }} 個已選項目不符合搜尋</p>
       <p v-if="q && !shown.length" class="muted">沒有符合「{{ query.trim() }}」的項目。</p>
@@ -168,28 +187,31 @@ function blocked(o: ChoiceOption): boolean {
     <!-- 有條目的選項：可搜尋清單，點名稱展開說明 -->
     <template v-if="choice.type !== 'abilityWeighted' && !collapsed && hasEntries">
       <ul class="entries">
-        <li v-for="o in shown" :key="o.value" :class="{ sel: isSelected(o), off: blocked(o) }">
-          <div class="row">
-            <input
-              :type="choice.count === 1 ? 'radio' : 'checkbox'"
-              :checked="isSelected(o)"
-              :disabled="blocked(o)"
-              :name="choice.key"
-              :data-value="o.value"
-              @change="toggle(o)"
-            />
-            <button type="button" class="name" @click="openId = openId === o.value ? null : o.value">
-              {{ o.label }}
-            </button>
-            <span v-if="o.note" class="note" :class="{ tce: o.note.includes('TCE') }">{{ o.note }}</span>
-            <span v-if="o.disabled && !isSelected(o)" class="disabled">{{ o.disabled }}</span>
-            <LegacyBadge v-if="o.entry" :entry="o.entry" @jump="jump" />
-            <SourceBadge v-if="o.entry" :source="o.entry.source" :page="o.entry.page" />
-          </div>
-          <div v-if="openId === o.value && o.entry" class="detail">
-            <EntryBlock v-if="o.entry.entries" :entry="o.entry.entries" />
-          </div>
-        </li>
+        <template v-for="g in grouped" :key="g.name">
+          <li v-if="g.name" class="group-head" :data-group="g.name">{{ g.name }}（{{ g.items.length }}）</li>
+          <li v-for="o in g.items" :key="o.value" :class="{ sel: isSelected(o), off: blocked(o) }">
+            <div class="row">
+              <input
+                :type="choice.count === 1 ? 'radio' : 'checkbox'"
+                :checked="isSelected(o)"
+                :disabled="blocked(o)"
+                :name="choice.key"
+                :data-value="o.value"
+                @change="toggle(o)"
+              />
+              <button type="button" class="name" @click="openId = openId === o.value ? null : o.value">
+                {{ o.label }}
+              </button>
+              <span v-if="o.note" class="note" :class="{ tce: o.note.includes('TCE') }">{{ o.note }}</span>
+              <span v-if="o.disabled && !isSelected(o)" class="disabled">{{ o.disabled }}</span>
+              <LegacyBadge v-if="o.entry" :entry="o.entry" @jump="jump" />
+              <SourceBadge v-if="o.entry" :source="o.entry.source" :page="o.entry.page" />
+            </div>
+            <div v-if="openId === o.value && o.entry" class="detail">
+              <EntryBlock v-if="o.entry.entries" :entry="o.entry.entries" />
+            </div>
+          </li>
+        </template>
       </ul>
       <p v-if="!choice.options.length" class="muted">目前書目下沒有可選項目。</p>
     </template>
@@ -273,12 +295,42 @@ select,
   width: 100%;
   margin-bottom: var(--space-2);
 }
+.group-head {
+  margin-top: var(--space-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-accent);
+  font-size: 0.85rem;
+}
+.restricted {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
 .pv {
   display: none;
   margin-left: var(--space-1);
   color: var(--color-accent);
 }
-.chip:hover .pv {
+.chip:hover .group-head {
+  margin-top: var(--space-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-accent);
+  font-size: 0.85rem;
+}
+.restricted {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.pv {
   display: inline;
 }
 .chips {
