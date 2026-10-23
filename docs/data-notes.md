@@ -417,6 +417,8 @@ DDB 的屬性值提升、傳奇恩惠、法術精通、招牌法術、學者都�
 
 ### 已決定（2026-10-23）
 
+- 第 1 項（只有原文的數值效果）：採 **(a)+(b) 混合**——先從簡體原文自動解析數值句型（例如「AC 等於 10＋敏捷＋體質」），解析不到的常見項目再補**少量人工規則**（以條目 id 對應）。CLAUDE.md §6 需相應修改。排在 M3 之後實作。
+
 - `setting-alt`／`supplement-alt` 的書：先不收，之後再說。
 - 與上游網站抽查：先不管。
 - 2014 種族／背景的語言：**照給**，來源與語言都標示「2014 版」。
@@ -431,3 +433,23 @@ DDB 的屬性值提升、傳奇恩惠、法術精通、招牌法術、學者都�
 - 協力者（sidekick）與 UA 神秘學家：不打包。
 - 舊書子職雙份（PHB 職業版與 XPHB 職業版）：預設只顯示 XPHB 職業底下那份，開「顯示舊版」才兩份都出現。
 - 缺頁碼：從英文 5etools-src 補（見 §10），補不到時才顯示 `p.?`。
+
+## 14. M3：xlsx 匯出函式庫比較（M3-1）
+
+| 項目 | ExcelJS 4.4.0 | SheetJS CE（cdn.sheetjs.com tarball） |
+|---|---|---|
+| 授權 | MIT | Apache-2.0 |
+| `file://` 下產生與下載 | 可：`workbook.xlsx.writeBuffer()` → Blob → `<a download>`；bundle 內沒有 `fetch` | 可：`XLSX.write` → Blob |
+| 標題列粗體 | 可（`cell.font`） | **社群版不寫出儲存格樣式**（樣式是 Pro 功能） |
+| 凍結標題列 | 可（`worksheet.views` 的 `state: 'frozen'`） | 社群版寫出有限，需另外處理 |
+| 欄寬、自動換行 | 欄寬可、`wrapText` 可 | 欄寬可（`!cols`），換行屬樣式→不可 |
+| 讀回驗證（Vitest） | 可（`workbook.xlsx.load`） | 可 |
+| 體積 | `exceljs.bare.min.js` 862KB（未壓縮） | 約 400–500KB |
+
+**選擇 ExcelJS**：M3-2 要求的粗體、凍結、換行，SheetJS 社群版做不到。
+
+**打包方式**：不 inline 進 `index.html`（目前 263KB，inline 會變約 1.1MB，且每次開頁都要解析）。
+`vite.config.ts` 的 `vendorScripts` 外掛把 `node_modules/exceljs/dist/exceljs.bare.min.js`
+輸出為 `dist/vendor/exceljs.min.js`（dev server 也直接提供），
+`src/export/vendor.ts` 在第一次匯出時以 classic `<script>` 載入，取 `window.ExcelJS`。
+`index.html` 大小不變（262.65KB），`dist/` 多 862KB。用 `bare` 版（不含 ES5 polyfill），因為只支援現代瀏覽器。

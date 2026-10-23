@@ -21,6 +21,7 @@
     "gen-page-patches": "node scripts/gen-page-patches.ts"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "pinia": "^4.0.3",
     "vue": "^3.5.42"
   },
