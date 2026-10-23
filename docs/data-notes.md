@@ -119,16 +119,35 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 | `backgrounds.js` | background 161 | 600 KB |
 | `feats.js` | feat 284 | 301 KB |
 | `optionalfeatures.js` | optionalfeature 221 | 136 KB |
-| `items.js` | item 2449（含 `isBaseItem` 基礎物品、`isItemGroup` 物品組） | 2.06 MB |
+| `items.js` | item 2664（含 `isBaseItem` 基礎物品、`isItemGroup` 物品組、`isGenericVariant` 泛用魔法變體） | 2.22 MB |
 | `spells.js` | spell 965（含 `classes` 職業對照） | 1.38 MB |
 | `classes.js` | class 26、subclass 312、classFeature 654、subclassFeature 1416 | 1.88 MB |
 | `rules.js` | language、skill、condition、disease、status、variantrule、sense、action、itemProperty、itemMastery（給 tooltip 用） | 693 KB |
 
-合計約 7.4 MB。每筆條目都有 `id`、`kind`、`name`、`engName`、`source`、`page`、`edition`，必要時有 `reprintedAs`（id 陣列）、`tceOptional`。
+合計約 7.5 MB。每筆條目都有 `id`、`kind`、`name`、`engName`、`source`、`page`、`edition`，必要時有 `reprintedAs`（id 陣列）、`tceOptional`。
 
 - 協力者（`class-sidekick.json`）不是玩家職業，不打包。
 - 刪掉的欄位見 `DROP_FIELDS`（fluff、翻譯者、SRD 標記、載具數值、foundry 等）。
 - `isClassFeatureVariant` 轉成 `tceOptional` 後刪除。
+- `magicvariants.json`（泛用魔法物品變體，例如「+1 武器」「矮人板甲」）也打包成 item：把 `inherits` 攤平，內文的 `{=bonusAc}` 等模板代入數值；不展開到每一種基礎物品。許多 DMG 物品的重印目標（`{uid: "矮人板甲|XDMG", tag: "item"}`）就是 XDMG 的泛用變體。
+- `_mod` 另外會出現：`"remove"` 簡寫（刪欄位）、`setProp`、點路徑欄位（`"inherits.entries"`），都在 magicvariants。
+
+## 10b. M1 數量比對（完成標準 1）
+
+條件：套用 `official`、隱藏被取代的舊版、TCE 可選規則關閉。
+「參考值」是另寫的獨立腳本，**不經過 build-data 管線**，直接從 `raw/` 依同樣條件計算（重印目標的來源在白名單內就算被取代）。
+
+| 分頁 | app 顯示 | 參考值 | 說明 |
+| ---- | -------: | -----: | ---- |
+| 種族 | 74 | 78 | 差 4：ERLW 地精、大地精，GGR 地精，MOT 梭螺鱼人。它們是 `_copy` 且 `_preserve.reprintedAs`，繼承了母條目的「已重印為 MPMM 版」。參考腳本沒解析 `_copy`，app 的結果才是對的（與 5etools 行為一致）。 |
+| 背景 | 148 | 148 | 吻合 |
+| 職業 | 13 | 13 | 吻合（XPHB 12 職業＋EFA 奇械師；子職另計，例如 XPHB 法師 13 個） |
+| 專長 | 234 | 234 | 吻合 |
+| 法術 | 576 | 576 | 吻合（XPHB 法師可用 380 道，含其他書擴充進職業清單者） |
+| 物品 | 1788 | 1788 | 吻合（第一次比對 1634 vs 1623，發現缺了 magicvariants，補上後吻合） |
+| 可選特性 | 127 | 127 | 吻合 |
+
+**尚未做**：與上游網站（5e.kiwee.top）畫面上的數字直接比對。網站是 JS 動態產生列表，無法從建置環境抓取，而且網站預設的篩選條件（例如是否隱藏重印舊版）與本站不同。列入待決事項請使用者抽查。
 
 ## 11. 來源對照表
 
@@ -318,3 +337,7 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 
 1. **`official` 群組的確切範圍**：見 §11 的暫定選法與對照表「官方」欄。特別是：(a) 冒險模組要不要收？(b) `setting-alt`（Plane Shift 系列、Lorwyn: First Light）與 `supplement-alt`（Astarion's Book of Hungers 等）要不要收？(c) EEPC 不在上游書目表，要不要補？
 2. **`public/data/*.js` 不進 git**：它們是從 `raw/` 產生的建置產物（數 MB），已加入 `.gitignore`；新環境要先跑 `npm run fetch-data && npm run build-data` 再 `npm run build`。日後做 GitHub Pages 自動部署時，CI 也要跑這兩步。
+3. **與上游網站實際比對**：請在 5e.kiwee.top 用相同條件（只勾 official 書目、隱藏 reprinted）抽查一兩個分頁的數量，見 §10b。
+4. **單本勾選介面**：任務檔說「先保留位置、隱藏起來」。目前是收合在「單本勾選（預覽）」裡、可以使用（完成標準 3「關閉任一本書後條目消失」需要它來驗證）。若要完全隱藏請告知。
+5. **協力者（sidekick）與 UA 神秘學家**：目前不打包。
+6. **subclass 的雙份資料**：舊書子職（例如 XGE 战争魔法）同時有「掛在 PHB 法師」與「`_copy` 到 XPHB 法師」兩份；預設只看到 XPHB 法師底下那份（PHB 法師已被取代）。開啟「顯示舊版」時兩份都會出現。

@@ -86,11 +86,20 @@ export function applyMod(value: Json, mod: Json): Json {
 }
 
 export function applyMods(entry: Json, mods: Json): void {
-  for (const [field, ops] of Object.entries(mods ?? {})) {
+  for (const [path, ops] of Object.entries(mods ?? {})) {
+    // 欄位可以是點路徑，例如 magicvariants 的 "inherits.entries"
+    const keys = path.split('.')
+    const field = keys.pop()!
+    let target = entry
+    for (const k of keys) target = target[k] = { ...target[k] }
+
     const list = Array.isArray(ops) ? ops : [ops]
     for (const op of list) {
-      if (typeof op === 'string') throw new Error(`未支援的 _mod 簡寫：${op}`)
-      entry[field] = applyMod(entry[field], op)
+      // 簡寫 "remove"：直接刪掉這個欄位
+      if (op === 'remove') delete target[field]
+      else if (typeof op === 'string') throw new Error(`未支援的 _mod 簡寫：${op}`)
+      else if (op.mode === 'setProp') target[field] = clone(op.value)
+      else target[field] = applyMod(target[field], op)
     }
   }
 }

@@ -293,3 +293,24 @@ store 建立時先 `load()` 一次，所以重開頁面會還原上次的設定�
 
 `<input v-model="filter.showLegacy" type="checkbox">`：勾選狀態與 store 的布林值雙向同步，不用自己寫 `@change`。
 單本勾選那裡則用 `:checked` + `@change` 手動呼叫 `toggleSource()`，因為勾選一本書還要順便判斷「是否仍等於某個群組」。
+
+### M1 之後的檔案地圖
+
+```
+scripts/fetch-data.ts          git sparse checkout 上游 data/ → raw/
+scripts/build-data.ts          raw/ → public/data/*.js（讀寫檔）
+scripts/lib/pipeline.ts        建置管線的純函式（_copy、白名單、重印、TCE 旗標），有 Vitest 測試
+scripts/lib/copy.ts            _copy / _mod 解析
+scripts/source-table.ts        把來源對照表寫進 docs/data-notes.md
+src/data/sourceGroups.ts       白名單與 official 群組（建置腳本與 app 共用）
+src/data/ids.ts、types.ts      條目 id 與型別（共用）
+src/data/tags.ts               {@tag} 解析；summary.ts、display.ts 是顯示用的小工具
+src/data/visibility.ts         「這筆條目在目前書目下要不要顯示」
+src/stores/catalog.ts          載入資料檔、建索引（markRaw）
+src/stores/sourceFilter.ts     啟用書目與開關（localStorage）
+src/components/entries/        EntryBlock（entries 結構）、RichText（標籤）、EntryLink（tooltip）
+src/components/browser/        OptionBrowser（分頁、搜尋、篩選）、EntryRow、ClassDetail、FeatureList
+```
+
+注意：被建置腳本（Node 直接執行 .ts）用到的 `src/data/*.ts`，彼此 import 要寫副檔名 `./ids.ts`，
+而且只能用「型別可直接擦掉」的 TS 語法（不能用 `enum`、`namespace`），因為 Node 只做 type stripping、不做轉譯。

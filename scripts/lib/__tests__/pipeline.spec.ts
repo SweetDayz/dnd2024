@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SourceInfo } from '../../../src/data/types.ts'
 import { applyMod, resolveCopies } from '../copy.ts'
-import { buildDataset } from '../pipeline.ts'
+import { buildDataset, flattenMagicVariant } from '../pipeline.ts'
 
 const src = (source: string, edition: '2014' | '2024' = '2014'): SourceInfo => ({
   source,
@@ -69,6 +69,39 @@ describe('_copy / _mod', () => {
         with: '阴林地精',
       }),
     ).toEqual([{ type: 'entries', name: '阴林地精', entries: ['阴林地精很小'] }])
+  })
+
+  it('_mod 的 "remove" 簡寫會刪除欄位', () => {
+    const [, child] = resolveCopies(
+      [
+        { name: 'A', source: 'PHB', rarity: 'rare', reqAttune: true },
+        { name: 'B', source: 'PHB', _copy: { name: 'A', source: 'PHB', _mod: { reqAttune: 'remove' } } },
+      ],
+      key,
+    )
+    expect(child).toEqual({ name: 'B', source: 'PHB', rarity: 'rare' })
+  })
+
+  it('_mod 支援點路徑與 setProp', () => {
+    const [, child] = resolveCopies(
+      [
+        { name: 'A', source: 'XDMG', inherits: { rarity: 'rare', entries: ['a'] } },
+        {
+          name: 'B',
+          source: 'AU',
+          _copy: {
+            name: 'A',
+            source: 'XDMG',
+            _mod: {
+              'inherits.rarity': { mode: 'setProp', value: 'legendary' },
+              'inherits.entries': { mode: 'appendArr', items: 'b' },
+            },
+          },
+        },
+      ],
+      key,
+    )
+    expect(child.inherits).toEqual({ rarity: 'legendary', entries: ['a', 'b'] })
   })
 
   it('找不到母條目時丟出錯誤', () => {
@@ -216,5 +249,37 @@ describe('buildDataset', () => {
       ['+1 长剑', undefined, undefined],
       ['艾恩石', undefined, true],
     ])
+  })
+})
+
+describe('flattenMagicVariant', () => {
+  it('把 inherits 攤平成一般物品，並代入 {=欄位} 模板', () => {
+    expect(
+      flattenMagicVariant({
+        name: '矮人板甲',
+        ENG_name: 'Dwarven Plate',
+        type: 'GV|XDMG',
+        requires: [{ name: '板甲' }],
+        inherits: {
+          namePrefix: '矮人',
+          source: 'XDMG',
+          page: 255,
+          rarity: 'very rare',
+          bonusAc: '+2',
+          entries: ['你在护甲等级上获得{=bonusAc}加值，{=baseName/l}很重。'],
+        },
+      }),
+    ).toEqual({
+      name: '矮人板甲',
+      ENG_name: 'Dwarven Plate',
+      type: 'GV|XDMG',
+      requires: [{ name: '板甲' }],
+      isGenericVariant: true,
+      source: 'XDMG',
+      page: 255,
+      rarity: 'very rare',
+      bonusAc: '+2',
+      entries: ['你在护甲等级上获得+2加值，该物品很重。'],
+    })
   })
 })

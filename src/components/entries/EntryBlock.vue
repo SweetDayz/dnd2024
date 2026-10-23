@@ -4,6 +4,7 @@
 // 支援的 type 見 docs/data-notes.md §8；不認得的 type 會盡量顯示其中的 entries，並警告一次。
 import { computed } from 'vue'
 import { describeTag, type TagView } from '@/data/tags'
+import { indexKey, useCatalogStore } from '@/stores/catalog'
 import EntryLink from './EntryLink.vue'
 import RichText from './RichText.vue'
 
@@ -44,6 +45,7 @@ const KNOWN = new Set([
   'wrapper',
 ])
 const warned = new Set<string>()
+const catalog = useCatalogStore()
 
 const e = computed<E>(() => props.entry)
 const type = computed<string | undefined>(() =>
@@ -72,6 +74,14 @@ const refLink = computed<Extract<TagView, { type: 'link' }> | undefined>(() => {
     view = describeTag({ tag, args: String(v[field] ?? '').split('|'), raw: '' })
   }
   return view?.type === 'link' ? view : undefined
+})
+
+/** 職業／子職特性的參照：資料已載入就直接展開內文（子職特性常用這種方式列出同級的小特性）。 */
+const expanded = computed(() => {
+  const v = refLink.value
+  if (!v || (v.kind !== 'classFeature' && v.kind !== 'subclassFeature') || props.depth > 6) return undefined
+  const found = catalog.get(indexKey(v.kind, v.name, v.source, ...(v.extra ?? [])))
+  return found && { type: 'entries', name: found.name, ENG_name: found.engName, entries: found.entries ?? [] }
 })
 
 const abilityText = computed(() => {
@@ -166,6 +176,7 @@ if (type.value && !KNOWN.has(type.value) && !warned.has(type.value)) {
   </div>
 
   <!-- 參照其他條目 -->
+  <EntryBlock v-else-if="expanded" :entry="expanded" :depth="depth" />
   <span v-else-if="refLink" class="ref"><EntryLink :view="refLink" /></span>
 
   <!-- 行內 -->

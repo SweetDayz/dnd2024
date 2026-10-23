@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import OptionBrowser from '@/components/browser/OptionBrowser.vue'
 import SourceFilterPanel from '@/components/SourceFilterPanel.vue'
 import { useCatalogStore } from '@/stores/catalog'
 
@@ -25,7 +26,7 @@ onMounted(async () => {
     </aside>
     <main class="main">
       <p v-for="e in catalog.errors" :key="e" class="error" data-testid="load-error">{{ e }}</p>
-      <p class="muted">選項瀏覽器（M1-6）</p>
+      <OptionBrowser />
     </main>
   </div>
 </template>

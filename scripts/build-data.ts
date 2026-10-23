@@ -37,6 +37,7 @@ const raw: RawInput = {
   baseitem: itemsBase.baseitem,
   item: items.item,
   itemGroup: items.itemGroup,
+  magicvariant: readRaw('magicvariants.json').magicvariant,
   spell: spellFiles.flatMap((f) => readRaw(`spells/${f}`).spell),
   spellLookup: readRaw('generated/gendata-spell-source-lookup.json'),
   class: fromClasses('class'),

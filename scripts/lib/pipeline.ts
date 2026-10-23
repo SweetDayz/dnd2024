@@ -12,7 +12,7 @@ import type { Edition, Entry, SourceInfo, SpellClassRef } from '../../src/data/t
 import { resolveCopies } from './copy.ts'
 import type { Json } from './raw.ts'
 
-export type RawInput = Partial<Record<EntryKind | 'baseitem' | 'itemGroup', Json[]>> & {
+export type RawInput = Partial<Record<EntryKind | 'baseitem' | 'itemGroup' | 'magicvariant', Json[]>> & {
   /** generated/gendata-spell-source-lookup.json */
   spellLookup?: Json
 }
@@ -86,10 +86,13 @@ export function buildDataset(raw: RawInput, opts: BuildOptions): Dataset {
   const resolved: Partial<Record<EntryKind, Json[]>> = {}
   for (const [k, arr] of Object.entries(raw)) {
     if (k === 'spellLookup' || !Array.isArray(arr)) continue
-    const items = resolveCopies(arr, keyOf(k))
+    const items =
+      k === 'magicvariant'
+        ? resolveCopies(arr, (e) => `${e.name}|${low(e.source ?? e.inherits?.source)}`).map(flattenMagicVariant)
+        : resolveCopies(arr, keyOf(k))
     if (k === 'baseitem') items.forEach((e) => (e.isBaseItem = true))
     if (k === 'itemGroup') items.forEach((e) => (e.isItemGroup = true))
-    const kind = (k === 'baseitem' || k === 'itemGroup' ? 'item' : k) as EntryKind
+    const kind = (['baseitem', 'itemGroup', 'magicvariant'].includes(k) ? 'item' : k) as EntryKind
     ;(resolved[kind] ??= []).push(...items)
   }
   // itemProperty 沒有 name，以縮寫當名稱
@@ -175,6 +178,32 @@ export function buildDataset(raw: RawInput, opts: BuildOptions): Dataset {
     }
   }
 
+  return out
+}
+
+/** 只在泛用變體上有意義、展開後不需要的欄位 */
+const VARIANT_ONLY = new Set(['namePrefix', 'nameSuffix', 'nameRemove', 'valueExpression', 'weightExpression', 'valueMult', 'weightMult', 'propertyAdd'])
+
+/**
+ * magicvariants.json 的泛用魔法物品變體（例如「+1 武器」「矮人板甲」）：
+ * 真正的物品資料放在 `inherits` 裡，套用到符合 `requires` 的基礎物品上。
+ * 這裡不展開到每一種基礎物品，只把它當成一筆「泛用變體」物品，並代入內文的 {=欄位} 模板。
+ */
+export function flattenMagicVariant(v: Json): Json {
+  const { inherits = {}, ...own } = v
+  const out: Json = { ...own, isGenericVariant: true }
+  for (const [k, val] of Object.entries<Json>(inherits)) if (!VARIANT_ONLY.has(k)) out[k] = val
+  const fill = (x: Json): Json =>
+    typeof x === 'string'
+      ? x.replace(/\{=(\w+)(?:\/\w+)?\}/g, (_m, p: string) =>
+          p === 'baseName' ? '该物品' : p === 'dmgType' ? '相应类型' : String(inherits[p] ?? ''),
+        )
+      : Array.isArray(x)
+        ? x.map(fill)
+        : x && typeof x === 'object'
+          ? Object.fromEntries(Object.entries(x).map(([k, val]) => [k, fill(val)]))
+          : x
+  if (out.entries) out.entries = fill(out.entries)
   return out
 }
 
