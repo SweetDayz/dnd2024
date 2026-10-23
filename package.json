@@ -17,7 +17,8 @@
     "fetch-data": "node scripts/fetch-data.ts",
     "build-data": "node scripts/build-data.ts",
     "check:file": "node scripts/check-file.mjs",
-    "source-table": "node scripts/source-table.ts"
+    "source-table": "node scripts/source-table.ts",
+    "gen-page-patches": "node scripts/gen-page-patches.ts"
   },
   "dependencies": {
     "pinia": "^4.0.3",

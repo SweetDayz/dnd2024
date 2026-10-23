@@ -3,6 +3,17 @@ import { EDITION_2024_CUTOFF } from '../../src/data/sourceGroups.ts'
 import type { SourceInfo } from '../../src/data/types.ts'
 import type { Json } from './raw.ts'
 
+/** 資料裡有、但上游書目表沒有的來源。 */
+const EXTRA_SOURCES: Json[] = [
+  {
+    source: 'EEPC',
+    name: '元素邪恶玩家手册',
+    ENG_name: "Elemental Evil Player's Companion",
+    published: '2015-03-10',
+    group: 'supplement',
+  },
+]
+
 export function buildSourceTable(books: Json[], adventures: Json[]): SourceInfo[] {
   const rows: SourceInfo[] = []
   const seen = new Set<string>()
@@ -22,6 +33,7 @@ export function buildSourceTable(books: Json[], adventures: Json[]): SourceInfo[
     })
   }
   books.forEach((b) => add(b, 'book'))
+  EXTRA_SOURCES.forEach((b) => add(b, 'book'))
   adventures.forEach((a) => add(a, 'adventure'))
   return rows.sort((a, b) => a.published.localeCompare(b.published) || a.source.localeCompare(b.source))
 }

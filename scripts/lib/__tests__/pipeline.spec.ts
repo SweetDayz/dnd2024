@@ -252,6 +252,25 @@ describe('buildDataset', () => {
   })
 })
 
+describe('pagePatches', () => {
+  it('只在缺頁碼時補上；職業特性用等級區分', () => {
+    const ds = buildDataset(
+      {
+        optionalfeature: [
+          { name: '放逐弹', ENG_name: 'Banishing Shot', source: 'TCE' },
+          { name: '有页码', ENG_name: 'Has Page', source: 'TCE', page: 5 },
+        ],
+      },
+      {
+        whitelist: new Set(['TCE']),
+        sources: SOURCES,
+        pagePatches: { 'optionalfeature|Banishing Shot|tce|': 10, 'optionalfeature|Has Page|tce|': 99 },
+      },
+    )
+    expect(ds.optionalfeature!.map((e) => e.page)).toEqual([10, 5])
+  })
+})
+
 describe('flattenMagicVariant', () => {
   it('把 inherits 攤平成一般物品，並代入 {=欄位} 模板', () => {
     expect(

@@ -5,7 +5,7 @@
 // 詳見 src/data/loader.ts。
 //
 // 用法：npm run build-data（需要先 npm run fetch-data）
-import { mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { SOURCE_WHITELIST } from '../src/data/sourceGroups.ts'
 import { DATA_FILES } from '../src/data/types.ts'
@@ -56,7 +56,8 @@ const raw: RawInput = {
   itemMastery: itemsBase.itemMastery,
 }
 
-const dataset = buildDataset(raw, { whitelist: SOURCE_WHITELIST, sources })
+const pagePatches = JSON.parse(readFileSync(resolve('scripts/data/page-patches.json'), 'utf8')).patches
+const dataset = buildDataset(raw, { whitelist: SOURCE_WHITELIST, sources, pagePatches })
 
 mkdirSync(OUT, { recursive: true })
 // 清掉舊的輸出

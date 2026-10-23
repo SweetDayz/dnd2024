@@ -42,4 +42,14 @@ describe('sourceFilter store', () => {
     expect(g.showLegacy).toBe(true)
     expect(g.enabledSet.has('XGE')).toBe(false)
   })
+
+  it('存檔的群組依最新定義還原（群組內容改版時舊存檔會更新）', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ groupId: 'official', enabled: ['PHB', 'ToA'], showLegacy: false, tceOptional: true }),
+    )
+    const f = useSourceFilterStore()
+    expect(f.enabled).toEqual([...SOURCE_GROUPS.official!.sources])
+    expect(f.tceOptional).toBe(true)
+  })
 })

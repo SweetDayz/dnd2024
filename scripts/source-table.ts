@@ -13,7 +13,7 @@ const rows = buildSourceTable(readRaw('books.json').book, readRaw('adventures.js
 const lines = [
   BEGIN,
   '',
-  `共 ${rows.length} 筆（書 ${rows.filter((r) => r.type === 'book').length}、冒險 ${rows.filter((r) => r.type === 'adventure').length}）。「官方」欄 ✅ 代表目前在暫定的 \`official\` 群組內。`,
+  `共 ${rows.length} 筆（書 ${rows.filter((r) => r.type === 'book').length}、冒險 ${rows.filter((r) => r.type === 'adventure').length}）。「官方」欄 ✅ 代表在 \`official\` 群組內。`,
   '',
   '| 官方 | 代碼 | 中文名 | 英文名 | 出版日期 | 類型 | 上游分類 |',
   '| :--: | ---- | ------ | ------ | -------- | ---- | -------- |',

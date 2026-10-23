@@ -18,9 +18,8 @@ export interface SourceGroup {
 }
 
 /**
- * 「官方」群組（暫定）：WotC 出版、內含玩家選項的規則書與設定書，
- * 加上含有種族／背景／專長／法術／子職的冒險模組。
- * 確切範圍待使用者確認（見 docs/data-notes.md 待決事項）。
+ * 「官方」群組：WotC 出版、內含玩家選項的規則書與設定書（上游分類 core／supplement／setting），加上 EEPC。
+ * 使用者決定（2026-10-23）：冒險模組一律不收；EEPC 收。
  */
 const OFFICIAL: readonly string[] = [
   // 核心規則書
@@ -41,6 +40,7 @@ const OFFICIAL: readonly string[] = [
   'BGG',
   'BMT',
   'AU',
+  'EEPC', // 元素邪惡玩家手冊：上游書目表沒有，資訊見 scripts/lib/sources.ts
   // 設定書（setting）
   'SCAG',
   'GGR',
@@ -57,20 +57,13 @@ const OFFICIAL: readonly string[] = [
   'FRHoF',
   'EFA',
   'RHW',
-  // 含玩家選項的冒險模組
-  'BGDIA',
-  'DSotDQ',
-  'GoS',
-  'IDRotF',
-  'ToA',
-  'WBtW',
 ]
 
 export const SOURCE_GROUPS: Record<string, SourceGroup> = {
   official: {
     id: 'official',
     label: '官方',
-    description: 'WotC 出版、內含玩家選項的書（暫定清單）',
+    description: 'WotC 出版、內含玩家選項的規則書與設定書（不含冒險模組）',
     sources: OFFICIAL,
   },
 }

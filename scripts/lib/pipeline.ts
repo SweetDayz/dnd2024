@@ -20,6 +20,14 @@ export type RawInput = Partial<Record<EntryKind | 'baseitem' | 'itemGroup' | 'ma
 export interface BuildOptions {
   whitelist: ReadonlySet<string>
   sources: readonly SourceInfo[]
+  /** 缺頁碼時的補丁（scripts/data/page-patches.json，鍵見 patchKey） */
+  pagePatches?: Readonly<Record<string, number>>
+}
+
+/** 頁碼補丁的鍵：kind|英文名|來源|等級（只有職業／子職特性用等級區分）。 */
+export function patchKey(kind: string, engName: string, source: string, level?: unknown): string {
+  const lv = kind === 'classFeature' || kind === 'subclassFeature' ? (level ?? '') : ''
+  return `${kind}|${engName}|${source.toLowerCase()}|${lv}`
 }
 
 export type Dataset = Partial<Record<EntryKind, Entry[]>>
@@ -141,7 +149,14 @@ export function buildDataset(raw: RawInput, opts: BuildOptions): Dataset {
 
   // 3. 正規化
   for (const [kind, list] of Object.entries(kept) as [EntryKind, Json[]][]) {
-    out[kind] = list.map((e) => normalize(kind, e, canon, canonical))
+    out[kind] = list.map((e) => {
+      const n = normalize(kind, e, canon, canonical)
+      if (n.page === undefined && n.engName) {
+        const page = opts.pagePatches?.[patchKey(kind, n.engName, n.source, e.level)]
+        if (page !== undefined) n.page = page
+      }
+      return n
+    })
   }
 
   // 4. 重印

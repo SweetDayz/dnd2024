@@ -114,54 +114,55 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 
 | 檔案 | 內容 | 大小（official） |
 | ---- | ---- | ---- |
-| `sources.js` | 白名單內的來源對照表 | 6 KB |
-| `races.js` | race 127、subrace 70 | 367 KB |
-| `backgrounds.js` | background 161 | 600 KB |
-| `feats.js` | feat 284 | 301 KB |
+| `sources.js` | 白名單內的來源對照表（32 本） | 5 KB |
+| `races.js` | race 126、subrace 74 | 369 KB |
+| `backgrounds.js` | background 137 | 457 KB |
+| `feats.js` | feat 275 | 286 KB |
 | `optionalfeatures.js` | optionalfeature 221 | 136 KB |
-| `items.js` | item 2664（含 `isBaseItem` 基礎物品、`isItemGroup` 物品組、`isGenericVariant` 泛用魔法變體） | 2.22 MB |
-| `spells.js` | spell 965（含 `classes` 職業對照） | 1.38 MB |
-| `classes.js` | class 26、subclass 312、classFeature 654、subclassFeature 1416 | 1.88 MB |
-| `rules.js` | language、skill、condition、disease、status、variantrule、sense、action、itemProperty、itemMastery（給 tooltip 用） | 693 KB |
+| `items.js` | item 2559（含 `isBaseItem` 基礎物品、`isItemGroup` 物品組、`isGenericVariant` 泛用魔法變體） | 2.10 MB |
+| `spells.js` | spell 963（含 `classes` 職業對照） | 1.37 MB |
+| `classes.js` | class 26、subclass 310、classFeature 607、subclassFeature 1408 | 1.87 MB |
+| `rules.js` | language、skill、condition、disease、status、variantrule、sense、action、itemProperty、itemMastery（給 tooltip 用） | 592 KB |
 
-合計約 7.5 MB。每筆條目都有 `id`、`kind`、`name`、`engName`、`source`、`page`、`edition`，必要時有 `reprintedAs`（id 陣列）、`tceOptional`。
+合計約 7.1 MB。每筆條目都有 `id`、`kind`、`name`、`engName`、`source`、`page`、`edition`，必要時有 `reprintedAs`（id 陣列）、`tceOptional`。
 
 - 協力者（`class-sidekick.json`）不是玩家職業，不打包。
 - 刪掉的欄位見 `DROP_FIELDS`（fluff、翻譯者、SRD 標記、載具數值、foundry 等）。
 - `isClassFeatureVariant` 轉成 `tceOptional` 後刪除。
 - `magicvariants.json`（泛用魔法物品變體，例如「+1 武器」「矮人板甲」）也打包成 item：把 `inherits` 攤平，內文的 `{=bonusAc}` 等模板代入數值；不展開到每一種基礎物品。許多 DMG 物品的重印目標（`{uid: "矮人板甲|XDMG", tag: "item"}`）就是 XDMG 的泛用變體。
+- **頁碼補丁**：中文上游有 89 筆缺 `page`（全是 AU：8 子職、62 子職特性、11 物品、8 可選特性）。`npm run gen-page-patches` 從英文 5etools-src `v2.38.0` 以「kind＋英文名＋來源（＋等級）」對應，產生 `scripts/data/page-patches.json`（進 git）；build-data 只在缺頁碼時套用。89 筆全部對上。上游日後補齊頁碼時，補丁自然不再生效。
 - `_mod` 另外會出現：`"remove"` 簡寫（刪欄位）、`setProp`、點路徑欄位（`"inherits.entries"`），都在 magicvariants。
 
 ## 10b. M1 數量比對（完成標準 1）
 
-條件：套用 `official`、隱藏被取代的舊版、TCE 可選規則關閉。
+條件：套用 `official`（2026-10-23 定案版：不含冒險、含 EEPC）、隱藏被取代的舊版、TCE 可選規則關閉。
 「參考值」是另寫的獨立腳本，**不經過 build-data 管線**，直接從 `raw/` 依同樣條件計算（重印目標的來源在白名單內就算被取代）。
 
 | 分頁 | app 顯示 | 參考值 | 說明 |
 | ---- | -------: | -----: | ---- |
-| 種族 | 74 | 78 | 差 4：ERLW 地精、大地精，GGR 地精，MOT 梭螺鱼人。它們是 `_copy` 且 `_preserve.reprintedAs`，繼承了母條目的「已重印為 MPMM 版」。參考腳本沒解析 `_copy`，app 的結果才是對的（與 5etools 行為一致）。 |
-| 背景 | 148 | 148 | 吻合 |
+| 種族 | 73 | 77 | 差 4：ERLW 地精、大地精，GGR 地精，MOT 梭螺鱼人。它們是 `_copy` 且 `_preserve.reprintedAs`，繼承了母條目的「已重印為 MPMM 版」。參考腳本沒解析 `_copy`，app 的結果才是對的（與 5etools 行為一致）。 |
+| 背景 | 125 | 125 | 吻合 |
 | 職業 | 13 | 13 | 吻合（XPHB 12 職業＋EFA 奇械師；子職另計，例如 XPHB 法師 13 個） |
-| 專長 | 234 | 234 | 吻合 |
-| 法術 | 576 | 576 | 吻合（XPHB 法師可用 380 道，含其他書擴充進職業清單者） |
-| 物品 | 1788 | 1788 | 吻合（第一次比對 1634 vs 1623，發現缺了 magicvariants，補上後吻合） |
+| 專長 | 225 | 225 | 吻合 |
+| 法術 | 574 | 574 | 吻合 |
+| 物品 | 1686 | 1686 | 吻合（第一次比對時發現缺了 magicvariants，補上後吻合） |
 | 可選特性 | 127 | 127 | 吻合 |
 
-**尚未做**：與上游網站（5e.kiwee.top）畫面上的數字直接比對。網站是 JS 動態產生列表，無法從建置環境抓取，而且網站預設的篩選條件（例如是否隱藏重印舊版）與本站不同。列入待決事項請使用者抽查。
+與上游網站（5e.kiwee.top）畫面數字的直接比對：網站列表由 JS 動態產生，建置環境抓不到；網站讀的就是同一份 JSON，上面的獨立計算已涵蓋同樣的資料。使用者可選擇性抽查（方法見待決事項 3）。
 
 ## 11. 來源對照表
 
 由 `npm run source-table` 從 `books.json`／`adventures.json` 產生（下方區塊會被覆蓋，不要手改）。
 `official` 群組定義在 `src/data/sourceGroups.ts`；建置期白名單 = 所有群組的聯集。
 
-**暫定的 `official` 選法**：上游分類為 `core`／`supplement`／`setting` 的規則書，加上含種族、背景、專長、法術或子職的 `supplement` 冒險（BGDIA、DSotDQ、GoS、IDRotF、ToA、WBtW）。
-排除：DM 帷幕（screen）、食譜（recipe）、編織（homecraft）、Sage Advice（other）、冒險者聯盟（organized-play）、`setting-alt`（Plane Shift 系列、LFL、NF）、`supplement-alt`（OGA、ABH、塔羅牌等）、只有魔法物品的冒險。
+**`official` 選法（使用者 2026-10-23 定案）**：上游分類為 `core`／`supplement`／`setting` 的規則書，加上 EEPC。**冒險模組一律不收**（無論是否主線）。
+排除：DM 帷幕（screen）、食譜（recipe）、編織（homecraft）、Sage Advice（other）、冒險者聯盟（organized-play）、`setting-alt`（Plane Shift 系列、LFL、NF）、`supplement-alt`（OGA、ABH、塔羅牌等）、所有冒險模組。
 
-資料中出現、但兩份書目表都沒有的來源：`EEPC`（元素邪惡玩家手冊，6 個種族，均已被 MPMM 重印）、`UATheMysticClass`（UA）、`EET`、`HAT-LMI`、`MCV2DC`、`RoTOS`、`TftYP`（只有零星物品）→ 目前一律不納入。
+資料中出現、但兩份書目表都沒有的來源：`EEPC`（元素邪惡玩家手冊，6 個種族，均已被 MPMM 重印）→ **收**，書目資訊補在 `scripts/lib/sources.ts` 的 `EXTRA_SOURCES`（中文名「元素邪恶玩家手册」為本專案自訂）。`UATheMysticClass`（UA）、`EET`、`HAT-LMI`、`MCV2DC`、`RoTOS`、`TftYP`（只有零星物品）→ 不收。
 
 <!-- source-table:begin -->
 
-共 163 筆（書 65、冒險 98）。「官方」欄 ✅ 代表目前在暫定的 `official` 群組內。
+共 164 筆（書 66、冒險 98）。「官方」欄 ✅ 代表在 `official` 群組內。
 
 | 官方 | 代碼 | 中文名 | 英文名 | 出版日期 | 類型 | 上游分類 |
 | :--: | ---- | ------ | ------ | -------- | ---- | -------- |
@@ -172,6 +173,7 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 |  | RoT | 提亚马特崛起 | Rise of Tiamat | 2014-11-04 | 冒險 | supplement |
 | ✅ | DMG | 城主指南（2014） | Dungeon Master's Guide (2014) | 2014-12-09 | 規則書 | core |
 |  | Screen | 地下城主帷幕 | Dungeon Master's Screen | 2015-01-20 | 規則書 | screen |
+| ✅ | EEPC | 元素邪恶玩家手册 | Elemental Evil Player's Companion | 2015-03-10 | 規則書 | supplement |
 |  | PotA | 毁灭亲王 | Princes of the Apocalypse | 2015-04-07 | 冒險 | supplement |
 |  | OotA | 逃离深渊 | Out of the Abyss | 2015-09-15 | 冒險 | supplement |
 | ✅ | SCAG | 剑湾冒险者指南 | Sword Coast Adventurer's Guide | 2015-11-03 | 規則書 | setting |
@@ -190,7 +192,7 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 |  | TftYP-TSC | 哈欠传送门故事集：暗无天日 | Tales from the Yawning Portal: The Sunless Citadel | 2017-03-24 | 冒險 | supplement |
 |  | TftYP-WPM | 哈欠传送门故事集：白羽山 | Tales from the Yawning Portal: White Plume Mountain | 2017-03-24 | 冒險 | supplement |
 |  | PSA | 异界传送: 阿芒凯 | Plane Shift: Amonkhet | 2017-07-06 | 規則書 | setting-alt |
-| ✅ | ToA | 湮灭之墓 | Tomb of Annihilation | 2017-09-19 | 冒險 | supplement |
+|  | ToA | 湮灭之墓 | Tomb of Annihilation | 2017-09-19 | 冒險 | supplement |
 |  | OGA | 一蛙之下 | One Grung Above | 2017-10-11 | 規則書 | supplement-alt |
 |  | TTP | 龟人扩充包 | The Tortle Package | 2017-11-03 | 冒險 | supplement-alt |
 | ✅ | XGE | 珊娜萨的万事指南 | Xanathar's Guide to Everything | 2017-11-21 | 規則書 | supplement |
@@ -206,7 +208,7 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 |  | KKW | 追捕克仑可 | Krenko's Way | 2018-11-20 | 冒險 | supplement-alt |
 |  | SAC | 贤者谏言合集（2014） | Sage Advice Compendium (2014) | 2019-01-31 | 規則書 | other |
 |  | AZfyT | 一个齐布，换你的想法 | A Zib for Your Thoughts | 2019-03-05 | 冒險 | supplement-alt |
-| ✅ | GoS | 盐沼幽魂 | Ghosts of Saltmarsh | 2019-05-21 | 冒險 | supplement |
+|  | GoS | 盐沼幽魂 | Ghosts of Saltmarsh | 2019-05-21 | 冒險 | supplement |
 |  | HftT | 寻找特萨尔蛇蜥 | Hunt for the Thessalhydra | 2019-05-21 | 冒險 | supplement-alt |
 | ✅ | AI | 艾奎兹玄有限责任公司 | Acquisitions Incorporated | 2019-06-18 | 規則書 | supplement |
 |  | OoW | 位面游荡仪 | The Orrery of the Wanderer | 2019-06-18 | 冒險 | supplement |
@@ -214,7 +216,7 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 |  | DC | 基础包：神圣的争夺 | Essentials Kit: Divine Contention | 2019-09-03 | 冒險 | supplement |
 |  | SDW | 基础包：沉睡巨龙醒转 | Essentials Kit: Sleeping Dragon's Wake | 2019-09-03 | 冒險 | supplement |
 |  | SLW | 基础包：风暴领主之怒 | Essentials Kit: Storm Lord's Wrath | 2019-09-03 | 冒險 | supplement |
-| ✅ | BGDIA | 博德之门: 坠入阿弗纳斯 | Baldur's Gate: Descent Into Avernus | 2019-09-18 | 冒險 | supplement |
+|  | BGDIA | 博德之门: 坠入阿弗纳斯 | Baldur's Gate: Descent Into Avernus | 2019-09-18 | 冒險 | supplement |
 |  | LR | 洛卡鱼人崛起 | Locathah Rising | 2019-09-19 | 冒險 | supplement-alt |
 |  | AWM | 与穆克一起冒险 | Adventure with Muk | 2019-11-12 | 規則書 | supplement-alt |
 |  | IMR | 重建炼狱机器 | Infernal Machine Rebuild | 2019-11-12 | 冒險 | supplement-alt |
@@ -228,7 +230,7 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 |  | ToR | 荒洲：复仇之潮 | Wildemount: Tide of Retribution | 2020-03-17 | 冒險 | supplement-alt |
 |  | US | 荒洲：恶客自来 | Wildemount: Unwelcome Spirits | 2020-03-17 | 冒險 | supplement-alt |
 | ✅ | MOT | 塞洛斯之神话奥德赛 | Mythic Odysseys of Theros | 2020-06-02 | 規則書 | setting |
-| ✅ | IDRotF | 冰风谷: 冰霜少女的雾凇 | Icewind Dale: Rime of the Frostmaiden | 2020-09-15 | 冒險 | supplement |
+|  | IDRotF | 冰风谷: 冰霜少女的雾凇 | Icewind Dale: Rime of the Frostmaiden | 2020-09-15 | 冒險 | supplement |
 |  | ScreenDungeonKit | 地下城主帷幕：地下城套组 | Dungeon Master's Screen: Dungeon Kit | 2020-09-21 | 規則書 | screen |
 |  | HF | 英雄宴 | Heroes' Feast | 2020-10-27 | 規則書 | recipe |
 |  | ScreenWildernessKit | 地下城主帷幕：荒野套组 | Dungeon Master's Screen: Wilderness Kit | 2020-11-17 | 規則書 | screen |
@@ -251,7 +253,7 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 |  | NRH-TCMC | NERDS 恢复和谐：糖果山冒险 | NERDS Restoring Harmony: The Candy Mountain Caper | 2021-09-01 | 冒險 | supplement-alt |
 |  | NRH-TLT | NERDS 恢复和谐：失落墓穴 | NERDS Restoring Harmony: The Lost Tomb | 2021-09-01 | 冒險 | supplement-alt |
 |  | DoD | 欢欣领域 | Domains of Delight | 2021-09-21 | 規則書 | supplement-alt |
-| ✅ | WBtW | 巫光之外的荒野 | The Wild Beyond the Witchlight | 2021-09-21 | 冒險 | supplement |
+|  | WBtW | 巫光之外的荒野 | The Wild Beyond the Witchlight | 2021-09-21 | 冒險 | supplement |
 |  | MaBJoV | 明斯克与布布恶棍志 | Minsc and Boo's Journal of Villainy | 2021-10-05 | 規則書 | supplement-alt |
 | ✅ | FTD | 费资本的巨龙宝库 | Fizban's Treasury of Dragons | 2021-10-26 | 規則書 | supplement |
 | ✅ | SCC | 斯翠海文：混沌研习 | Strixhaven: A Curriculum of Chaos | 2021-12-07 | 規則書 | setting |
@@ -270,7 +272,7 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 | ✅ | BAM | 布布的星界怪兽展 | Boo's Astral Menagerie | 2022-08-16 | 規則書 | setting |
 |  | LoX | 萨利希斯之光 | Light of Xaryxis | 2022-08-16 | 冒險 | supplement |
 |  | ScreenSpelljammer | 地下城主帷幕：魔法船 | Dungeon Master's Screen: Spelljammer | 2022-08-16 | 規則書 | screen |
-| ✅ | DSotDQ | 龙枪:龙后之影 | Dragonlance: Shadow of the Dragon Queen | 2022-11-22 | 冒險 | supplement |
+|  | DSotDQ | 龙枪:龙后之影 | Dragonlance: Shadow of the Dragon Queen | 2022-11-22 | 冒險 | supplement |
 |  | KftGV | 金色金库的钥匙 | Keys from the Golden Vault | 2023-02-21 | 冒險 | supplement |
 |  | HAT-TG | 盗贼画廊 | Thieves' Gallery | 2023-03-06 | 規則書 | supplement-alt |
 |  | GotSF | 坠星熔炉的巨人 | Giants of the Star Forge | 2023-08-01 | 冒險 | supplement-alt |
@@ -335,10 +337,14 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 
 （之後一起問使用者；目前先用預設值繼續。）
 
-1. **`official` 群組的確切範圍**：見 §11 的暫定選法與對照表「官方」欄。特別是：(a) 冒險模組要不要收？(b) `setting-alt`（Plane Shift 系列、Lorwyn: First Light）與 `supplement-alt`（Astarion's Book of Hungers 等）要不要收？(c) EEPC 不在上游書目表，要不要補？
-2. **`public/data/*.js` 不進 git**：它們是從 `raw/` 產生的建置產物（數 MB），已加入 `.gitignore`；新環境要先跑 `npm run fetch-data && npm run build-data` 再 `npm run build`。日後做 GitHub Pages 自動部署時，CI 也要跑這兩步。
-3. **與上游網站實際比對**：請在 5e.kiwee.top 用相同條件（只勾 official 書目、隱藏 reprinted）抽查一兩個分頁的數量，見 §10b。
-4. **單本勾選介面**：任務檔說「先保留位置、隱藏起來」。目前是收合在「單本勾選（預覽）」裡、可以使用（完成標準 3「關閉任一本書後條目消失」需要它來驗證）。若要完全隱藏請告知。
-5. **協力者（sidekick）與 UA 神秘學家**：目前不打包。
-6. **subclass 的雙份資料**：舊書子職（例如 XGE 战争魔法）同時有「掛在 PHB 法師」與「`_copy` 到 XPHB 法師」兩份；預設只看到 XPHB 法師底下那份（PHB 法師已被取代）。開啟「顯示舊版」時兩份都會出現。
-7. **缺頁碼的條目**：上游 AU（Arcana Unleashed，2026）的 8 個子職、62 個子職特性、11 件物品、8 個可選特性沒有 `page`。徽章顯示 `AU p.?`，滑鼠停留說明「上游資料沒有頁碼」。
+1. **`setting-alt`／`supplement-alt` 的書**（Plane Shift 系列、Lorwyn: First Light、Netheril's Fall、Astarion's Book of Hungers 等）：目前不收。2026-10-23 的回覆只確定了冒險與 EEPC，這項沿用預設。
+2. **與上游網站抽查（選擇性）**：在 5e.kiwee.top 的種族／專長頁打開篩選器，來源只勾 §11 打 ✅ 的書、雜項篩掉「已重印」，把列表上方顯示的數量（或截圖）告訴 Claude 即可，不需要 HTML 或 JS。
+
+### 已決定（2026-10-23）
+
+- `official`：不收冒險模組；EEPC 收。
+- `public/data/*.js` 不進 git；新環境先 `npm run fetch-data && npm run build-data` 再 `npm run build`，日後 CI 也照做。
+- 單本勾選：Claude 決定 → 維持收合在「單本勾選（預覽）」、可使用。
+- 協力者（sidekick）與 UA 神秘學家：不打包。
+- 舊書子職雙份（PHB 職業版與 XPHB 職業版）：預設只顯示 XPHB 職業底下那份，開「顯示舊版」才兩份都出現。
+- 缺頁碼：從英文 5etools-src 補（見 §10），補不到時才顯示 `p.?`。

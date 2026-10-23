@@ -33,7 +33,11 @@ export const useSourceFilterStore = defineStore('sourceFilter', () => {
 
   /** 目前套用的群組；使用者單本勾選後變成 null（自訂） */
   const groupId = ref<string | null>(saved ? saved.groupId : DEFAULT_GROUP_ID)
-  const enabled = ref<string[]>(saved?.enabled ?? [...defaultGroup.sources])
+  // 存檔若是某個群組，就用該群組「目前的」定義（群組內容改版時，舊存檔才會跟著更新）
+  const savedGroup = saved?.groupId ? SOURCE_GROUPS[saved.groupId] : undefined
+  const enabled = ref<string[]>(
+    savedGroup ? [...savedGroup.sources] : (saved?.enabled ?? [...defaultGroup.sources]),
+  )
   const showLegacy = ref(saved?.showLegacy ?? false)
   const tceOptional = ref(saved?.tceOptional ?? false)
 
