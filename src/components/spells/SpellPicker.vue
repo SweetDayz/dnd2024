@@ -23,7 +23,8 @@ import {
   type SpellSortKey,
 } from '@/data/spellFilter'
 import type { Entry } from '@/data/types'
-import type { ChoiceSlot, SpellScope } from '@/rules/build'
+import type { ChoiceSlot, SpellScope, SpellbookInfo } from '@/rules/build'
+import { togglePoolSpell } from '@/rules/spells/pools'
 import { holderLabel, otherHolders, spellHolders, spellScopePool, spellScopeReason, type SpellRow } from '@/rules/spells'
 import { useCharacterStore } from '@/stores/character'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
@@ -171,13 +172,22 @@ const duplicates = computed(() =>
 )
 const legacySelected = computed(() => selectedEntries.value.filter((e) => e.kind && filter.superseded(e)))
 
+/** 法術書制（法師）的欄位：法術書與準備法術存在 character.spellbooks（M9-3） */
+function bookInfoOf(s: ChoiceSlot): SpellbookInfo | undefined {
+  return slots.value.find((x) => x.spell.book && (x.key === s.key || x.spell.book.prepKey === s.key))?.spell.book
+}
+
 function toggle(sp: Entry) {
   const s = active.value
   if (!s || blocked.value.has(sp.id)) return
-  const sel = s.selected.filter(Boolean)
-  if (sel.includes(sp.id)) store.setChoice(s.key, sel.filter((v) => v !== sp.id))
-  else if (s.count === 1) store.setChoice(s.key, [sp.id])
-  else if (sel.length < s.count) store.setChoice(s.key, [...sel, sp.id])
+  const { selected } = togglePoolSpell(data.value, s, sp)
+  const info = bookInfoOf(s)
+  if (!info) return store.setChoice(s.key, selected.some(Boolean) ? selected : [])
+  const get = (k: string) => slots.value.find((x) => x.key === k)?.selected.filter(Boolean) ?? []
+  const book = s.key === info.bookKey ? selected.filter(Boolean) : get(info.bookKey)
+  const free = new Set(info.free.map(([id]) => id))
+  const prepared = (s.key === info.prepKey ? selected.filter(Boolean) : get(info.prepKey)).filter((id) => free.has(id) || book.includes(id))
+  store.setSpellbook(info.bookKey.replace(/:spellbook$/, ''), { book, prepared })
 }
 
 // ---- 詳情與定位 ----

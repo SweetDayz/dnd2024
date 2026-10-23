@@ -46,9 +46,13 @@ export function benchmarkLevel1(data: RulesData): Character {
   choose(c, data, (s) => mi(s) && s.type === 'spell' && s.count === 1, ['spell|光导箭|XPHB'])
   // 法師法術（同 DDB）：戲法光亮術、法師之手、冷凍射線；法術書 6 道，準備 4 道
   choose(c, data, byKey(`${WIZARD}:cantrips`), ['spell|光亮术|XPHB', 'spell|法师之手|XPHB', 'spell|冷冻射线|XPHB'])
-  choose(c, data, byKey(`${WIZARD}:spellbook`), SPELLBOOK)
-  choose(c, data, byKey(`${WIZARD}:prepared`), PREPARED)
+  setSpellbook(c, WIZARD, SPELLBOOK, PREPARED)
   return c
+}
+
+/** 法術書制（法師）的存檔：spellbooks[職業]（M9-3） */
+export function setSpellbook(c: Character, classId: string, book: string[], prepared: string[]): void {
+  c.spellbooks[classId] = { spellbook: Object.fromEntries(book.map((id) => [id, {}])), prepared: [...prepared] }
 }
 
 export const SPELLBOOK = ['侦测魔法', '法师护甲', '魔法飞弹', '睡眠术', '雷鸣波', '护盾术'].map((n) => `spell|${n}|XPHB`)

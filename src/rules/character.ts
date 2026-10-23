@@ -9,7 +9,12 @@
  */
 import { ABILITIES, type Ability } from './abilities.ts'
 
-export const SCHEMA_VERSION = 1
+/**
+ * 存檔格式版本。
+ *   1：M2 起的格式。
+ *   2（M9-3）：法師的法術書與準備法術改存 `spellbooks`；additionalSpells 的選擇欄位改為「同特性同取得方式一個池子」。
+ */
+export const SCHEMA_VERSION = 2
 
 /** manual＝使用者自填（不檢查總和或陣列，審卡報告會提示 DM） */
 export type AbilityMethod = 'roll' | 'standard' | 'pointbuy' | 'manual'
@@ -63,6 +68,16 @@ export interface Currency {
   pp: number
 }
 
+/**
+ * 法術書制職業（法師）的存檔（M9-3）：spellbook 是抄進書裡的法術，prepared 是已準備的法術，prepared ⊆ 法術書。
+ * 子職的免費抄寫（學派學者、寻获魔宠…）由子職的選擇池決定，不寫進 spellbook；
+ * 若存檔裡的條目帶 `free`（保留給日後手動標記用），規則引擎同樣不算名額。
+ */
+export interface SpellbookSave {
+  spellbook: Record<string, { free?: string }>
+  prepared: string[]
+}
+
 export interface Character {
   schemaVersion: number
   id: string
@@ -76,8 +91,10 @@ export interface Character {
   baseScores: Record<Ability, number | null>
   /** 4d6 去最低擲出的六個數字（玩家再分配到屬性上） */
   rolledPool: number[]
-  /** 選擇欄位 key → 選到的值 */
+  /** 選擇欄位 key → 選到的值（法術池子的值位置有意義：第 i 格，空格為 ''） */
   choices: Record<string, string[]>
+  /** 法術書制職業：職業 id → 法術書與準備法術 */
+  spellbooks: Record<string, SpellbookSave>
   inventory: InventoryItem[]
   currency: Currency
   /** 手動覆寫：欄位 key → 數值（例如 ac、hpMax、skill:stealth） */
@@ -112,6 +129,7 @@ export function newCharacter(now = new Date().toISOString()): Character {
     baseScores: emptyScores(),
     rolledPool: [],
     choices: {},
+    spellbooks: {},
     inventory: [],
     currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
     overrides: {},
@@ -191,5 +209,50 @@ export function migrate(obj: Record<string, unknown>): Character {
   const c = { ...base, ...obj, schemaVersion: SCHEMA_VERSION } as Character
   c.baseScores = { ...emptyScores(), ...(isObj(obj.baseScores) ? obj.baseScores : {}) } as Character['baseScores']
   c.currency = { ...base.currency, ...(isObj(obj.currency) ? obj.currency : {}) } as Currency
+  c.choices = { ...(isObj(obj.choices) ? obj.choices : {}) } as Character['choices']
+  c.spellbooks = isObj(obj.spellbooks) ? (JSON.parse(JSON.stringify(obj.spellbooks)) as Character['spellbooks']) : {}
+  if (Number(obj.schemaVersion ?? 0) < 2) migrateSpellsV1(c)
+  for (const sb of Object.values(c.spellbooks)) checkSpellbook(sb)
   return c
+}
+
+/**
+ * v1 → v2（M9-3）：
+ *   - 法師：`class|法师|XPHB:spellbook`／`:prepared` 兩個選擇欄位 → `spellbooks['class|法师|XPHB']`。
+ *   - additionalSpells：原本每個選擇一個欄位 `<前綴>:spells:<序號>`，改為依取得方式合併的池子 `<前綴>:spells:<kind>`。
+ *     遷移時不知道每個序號是哪一種取得方式（要看資料），所以先依序號串成 `<前綴>:spells:legacy`，
+ *     規則引擎建立池子時再把符合條件的法術分配進去（見 build.ts `legacyPicks`）。
+ */
+export function migrateSpellsV1(c: Character): void {
+  for (const key of Object.keys(c.choices)) {
+    const m = /^(class\|[^:]+):spellbook$/.exec(key)
+    if (!m) continue
+    const classId = m[1]!
+    const prepKey = `${classId}:prepared`
+    const book = (c.choices[key] ?? []).filter(Boolean)
+    c.spellbooks[classId] = {
+      spellbook: Object.fromEntries(book.map((id) => [id, {}])),
+      prepared: (c.choices[prepKey] ?? []).filter(Boolean),
+    }
+    delete c.choices[key]
+    delete c.choices[prepKey]
+  }
+  const legacy = new Map<string, [number, string[]][]>()
+  for (const [key, values] of Object.entries(c.choices)) {
+    const m = /^(.*:spells):(\d+)$/.exec(key)
+    if (!m) continue
+    legacy.set(m[1]!, [...(legacy.get(m[1]!) ?? []), [Number(m[2]), values]])
+    delete c.choices[key]
+  }
+  for (const [prefix, list] of legacy) {
+    c.choices[`${prefix}:legacy`] = list.sort((a, b) => a[0] - b[0]).flatMap(([, v]) => v.filter(Boolean))
+  }
+}
+
+/** 載入時驗證 prepared ⊆ 法術書：已準備但不在書裡的補進書（超出名額的由規則引擎標成未選擇並提示） */
+function checkSpellbook(sb: SpellbookSave): void {
+  if (!isObj(sb.spellbook)) sb.spellbook = {}
+  if (!Array.isArray(sb.prepared)) sb.prepared = []
+  sb.prepared = [...new Set(sb.prepared.filter((x) => typeof x === 'string' && x))]
+  for (const id of sb.prepared) if (!sb.spellbook[id]) sb.spellbook[id] = {}
 }

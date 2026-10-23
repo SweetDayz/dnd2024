@@ -293,6 +293,8 @@ interface Ctx {
   seen: Set<string>
   /** 擴充法術清單：職業 id（或 '*'＝所有施法職業）→ 額外的法術 id 與篩選字串 */
   expanded: Map<string, { ids: Set<string>; filters: string[] }>
+  /** v1 存檔遷移：`<前綴>:spells:legacy` 已分配出去的法術 */
+  legacyUsed: Map<string, Set<string>>
 }
 
 const ALL_ABILITIES: string[] = [...ABILITIES]
@@ -307,8 +309,10 @@ function addSlot(
   s: Omit<ChoiceSlot, 'selected' | 'done' | 'warnings'> & { warnings?: string[] },
   /** 位置有意義的欄位（法術池子）：第 i 格能不能放這個值 */
   accept?: (i: number, value: string) => boolean,
+  /** 不從 choices 讀，改用這份（法師的法術書存在 spellbooks；舊存檔的 legacy 法術） */
+  rawOverride?: string[],
 ): string[] {
-  const raw = ctx.c.choices[s.key] ?? []
+  const raw = rawOverride ?? ctx.c.choices[s.key] ?? []
   const valid = new Set(s.options.map((o) => o.value))
   const warnings = [...(s.warnings ?? [])]
   let selected: string[]
@@ -935,12 +939,33 @@ function processSpells(ctx: Ctx, list: Json[], prefix: string, origin: Origin, l
         },
       },
       (i, v) => !!perCell[i]?.has(v),
+      ctx.c.choices[slotKey] ? undefined : legacyPicks(ctx, key, perCell),
     )
     sel.forEach((id, i) => {
       const sp = ctx.data.get(id)
       if (sp && cells[i]) grant(`${slotKey}:${i}`, sp, cells[i]!, slotKey)
     })
   }
+}
+
+/**
+ * v1 存檔（M9-3 遷移）：原本每個選擇一個欄位，遷移後依序號串成 `<前綴>:spells:legacy`。
+ * 這個池子還沒有新格式的選擇時，把 legacy 裡符合某格條件的法術依序放進最先符合的空格；已分配的不再給其他池子。
+ */
+function legacyPicks(ctx: Ctx, key: string, perCell: Set<string>[]): string[] | undefined {
+  const legacy = ctx.c.choices[`${key}:legacy`]
+  if (!legacy?.length) return undefined
+  const used = ctx.legacyUsed.get(key) ?? new Set<string>()
+  ctx.legacyUsed.set(key, used)
+  const cells = perCell.map(() => '')
+  for (const id of legacy) {
+    if (used.has(id)) continue
+    const i = cells.findIndex((v, j) => !v && perCell[j]!.has(id))
+    if (i < 0) continue
+    cells[i] = id
+    used.add(id)
+  }
+  return cells.some(Boolean) ? cells : undefined
 }
 
 /** 池子的限制白話文：「≤2 環 ×2、≤3 環 ×1，限死灵系」 */
@@ -1654,31 +1679,52 @@ function processClassSpells(ctx: Ctx) {
       }
       const key = `${cls.id}:spellbook`
       const prepKey = `${cls.id}:prepared`
-      const book = addSlot(ctx, {
-        key,
-        type: 'spell',
-        label: `法術書（共 ${cc.spellbook} 道，1–${cc.maxSpellLevel} 環）`,
-        origin,
-        step: 'spells',
-        count: cc.spellbook,
-        options: opts(1, cc.maxSpellLevel, (id) => (free.has(id) ? `已由 ${free.get(id)} 免費加入法術書` : undefined)),
-        spell: { tab: '法術書', role: 'spellbook', kind: 'spellbook', cantrip: false, classList: cc.listName, minLevel: 1, maxLevel: cc.maxSpellLevel, linked: [prepKey] },
-      })
+      // 存檔：spellbooks[職業]（M9-3）。免費抄寫的不算名額，所以不放進付費的書
+      const saved = c.spellbooks?.[cls.id]
+      const rawBook = saved ? Object.entries(saved.spellbook).filter(([id, v]) => !v.free && !free.has(id)).map(([id]) => id) : (c.choices[key] ?? [])
+      const rawPrep = saved ? saved.prepared : (c.choices[prepKey] ?? [])
+      // 抄進書裡、後來又由子職免費加入的法術：不再占名額（下次修改法術書時從存檔移除）
+      const dupFree = (saved ? Object.keys(saved.spellbook) : (c.choices[key] ?? [])).filter((id) => free.has(id))
+      const book = addSlot(
+        ctx,
+        {
+          key,
+          type: 'spell',
+          label: `法術書（共 ${cc.spellbook} 道，1–${cc.maxSpellLevel} 環）`,
+          origin,
+          step: 'spells',
+          count: cc.spellbook,
+          options: opts(1, cc.maxSpellLevel, (id) => (free.has(id) ? `已由 ${free.get(id)} 免費加入法術書` : undefined)),
+          spell: { tab: '法術書', role: 'spellbook', kind: 'spellbook', cantrip: false, classList: cc.listName, minLevel: 1, maxLevel: cc.maxSpellLevel, linked: [prepKey] },
+          warnings: dupFree.map((id) => `「${data.get(id)?.name ?? id}」已由 ${free.get(id)} 免費加入法術書，不再占法術書名額，可以另抄一道`),
+        },
+        undefined,
+        rawBook,
+      )
       const inBookIds = [...new Set([...book, ...free.keys()])]
       const always = heldAlways
-      const prepared = addSlot(ctx, {
-        key: prepKey,
-        type: 'spell',
-        label: `準備法術（從法術書選 ${cc.prepared ?? 0}；${changeLabel}）`,
-        origin,
-        step: 'spells',
-        count: cc.prepared ?? 0,
-        options: inBookIds
-          .map((id) => data.get(id))
-          .filter((e): e is Entry => !!e && Number(e.level) <= cc.maxSpellLevel)
-          .map((e) => entryOption(e, always.has(e.id) ? `已由 ${always.get(e.id)} 永遠準備` : undefined)),
-        spell: { tab: '準備法術', role: 'prepared', kind: 'prepared', cantrip: false, fromIds: inBookIds, linked: [key] },
-      })
+      const prepared = addSlot(
+        ctx,
+        {
+          key: prepKey,
+          type: 'spell',
+          label: `準備法術（從法術書選 ${cc.prepared ?? 0}；${changeLabel}）`,
+          origin,
+          step: 'spells',
+          count: cc.prepared ?? 0,
+          options: inBookIds
+            .map((id) => data.get(id))
+            .filter((e): e is Entry => !!e && Number(e.level) <= cc.maxSpellLevel)
+            .map((e) => entryOption(e, always.has(e.id) ? `已由 ${always.get(e.id)} 永遠準備` : undefined)),
+          spell: { tab: '準備法術', role: 'prepared', kind: 'prepared', cantrip: false, fromIds: inBookIds, linked: [key] },
+          // prepared ⊆ 法術書：載入時補進書的法術若因書滿被截掉，這裡改為未選擇並提示
+          warnings: rawPrep
+            .filter((id) => id && !inBookIds.includes(id))
+            .map((id) => `「${data.get(id)?.name ?? id}」已準備但不在法術書（法術書已滿），改為未選擇`),
+        },
+        undefined,
+        rawPrep,
+      )
       // 把狀態機需要的資訊掛在法術書欄位上（UI 用 SpellbookRules 包起來）
       const bookSlot = out.slots.find((s) => s.key === key)!
       bookSlot.spell!.book = {
@@ -1962,7 +2008,7 @@ export function buildCharacter(c: Character, data: RulesData): Build {
     notes: [],
     legacyPicks: [],
   }
-  const ctx: Ctx = { c, data, out, seen: new Set(), expanded: new Map() }
+  const ctx: Ctx = { c, data, out, seen: new Set(), expanded: new Map(), legacyUsed: new Map() }
   processClasses(ctx)
   processBackground(ctx)
   processRace(ctx)

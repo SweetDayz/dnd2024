@@ -13,7 +13,7 @@ import {
   spellScopePool,
   spellScopeReason,
 } from '@/rules/spells'
-import { benchmarkLevel, benchmarkLevel1, WIZARD } from './benchmark'
+import { benchmarkLevel, benchmarkLevel1, setSpellbook, WIZARD } from './benchmark'
 import { hasRealData, realData } from './realData'
 
 describe('法術小工具', () => {
@@ -136,17 +136,17 @@ describe.skipIf(!hasRealData)('法術選擇欄位（M5）', () => {
     const c = benchmarkLevel(data, 12)
     let b = buildCharacter(c, data)
     const book = b.slots.find((s) => s.key === `${WIZARD}:spellbook`)!
-    const picks = [...book.selected, ...book.options.map((o) => o.value).filter((v) => !book.selected.includes(v))].slice(0, book.count)
-    c.choices[book.key] = picks
+    const picks = [...book.selected, ...book.options.filter((o) => !o.disabled).map((o) => o.value).filter((v) => !book.selected.includes(v))].slice(0, book.count)
+    setSpellbook(c, WIZARD, picks, [])
     b = buildCharacter(c, data)
     expect(b.slots.find((s) => s.key === book.key)!.done).toBe(true)
     const prep = b.slots.find((s) => s.key === `${WIZARD}:prepared`)!
     expect(prep.spell!.fromIds!.length).toBeGreaterThanOrEqual(book.count)
-    c.choices[prep.key] = prep.options.slice(0, prep.count).map((o) => o.value)
+    setSpellbook(c, WIZARD, picks, prep.options.slice(0, prep.count).map((o) => o.value))
     b = buildCharacter(c, data)
     expect(b.slots.find((s) => s.key === prep.key)!.done).toBe(true)
     // 已選滿：再加一個會被截掉（選滿停用的規則面）
-    c.choices[prep.key] = prep.options.slice(0, prep.count + 1).map((o) => o.value)
+    setSpellbook(c, WIZARD, picks, prep.options.slice(0, prep.count + 1).map((o) => o.value))
     expect(buildCharacter(c, data).slots.find((s) => s.key === prep.key)!.selected).toHaveLength(prep.count)
   })
 })

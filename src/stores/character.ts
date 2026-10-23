@@ -80,6 +80,21 @@ export const useCharacterStore = defineStore('character', () => {
     })
   }
 
+  /**
+   * 法術書制職業（法師）的法術書與準備法術（M9-3）：book 是付費抄寫的法術，prepared ⊆ 法術書（含免費抄寫）。
+   */
+  function setSpellbook(classId: string, state: { book: string[]; prepared: string[] }) {
+    update((c) => {
+      c.spellbooks ??= {}
+      const prev = c.spellbooks[classId]?.spellbook ?? {}
+      // 保留舊條目上的標記（例如 free），新抄的給空物件
+      c.spellbooks[classId] = {
+        spellbook: Object.fromEntries(state.book.map((id) => [id, prev[id] ?? {}])),
+        prepared: [...state.prepared],
+      }
+    })
+  }
+
   function logRoll(r: Omit<RollRecord, 'at'>) {
     update((c) => c.rollLog.push({ ...r, at: new Date().toISOString() }))
   }
@@ -137,6 +152,7 @@ export const useCharacterStore = defineStore('character', () => {
     remove,
     update,
     setChoice,
+    setSpellbook,
     logRoll,
     exportCurrent,
     importJson,
