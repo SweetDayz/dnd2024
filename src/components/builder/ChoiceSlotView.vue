@@ -55,13 +55,21 @@ function jump(newer: Entry) {
   }
 }
 
-const shown = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return base.value
-  return base.value.filter(
-    (o) => o.label.toLowerCase().includes(q) || o.entry?.engName?.toLowerCase().includes(q) || props.choice.selected.includes(o.value),
-  )
-})
+// 搜尋：只顯示「符合」的項目（中文名、英文名、選項鍵，不分大小寫）。已勾選但不符合的不留在清單裡，
+// 改由上方的「已選」標籤列隨時顯示，並提示有幾個被搜尋隱藏。
+const searchable = computed(() => props.choice.options.length > 8)
+const q = computed(() => query.value.trim().toLowerCase())
+const matchOption = (o: ChoiceOption) =>
+  !q.value ||
+  o.label.toLowerCase().includes(q.value) ||
+  !!o.entry?.name.toLowerCase().includes(q.value) ||
+  !!o.entry?.engName?.toLowerCase().includes(q.value) ||
+  o.value.toLowerCase().includes(q.value)
+const shown = computed(() => base.value.filter(matchOption))
+const selectedOptions = computed(() =>
+  props.choice.selected.filter(Boolean).map((v) => props.choice.options.find((o) => o.value === v) ?? { value: v, label: v }),
+)
+const hiddenSelected = computed(() => selectedOptions.value.filter((o) => !shown.value.includes(o as ChoiceOption)).length)
 
 const isSelected = (o: ChoiceOption) => props.choice.selected.includes(o.value)
 
@@ -123,13 +131,26 @@ function blocked(o: ChoiceOption): boolean {
       <button type="button" class="edit" data-testid="slot-edit" @click="editing = true">修改</button>
     </div>
 
-    <!-- 有條目的選項：可搜尋清單，點名稱展開說明 -->
-    <template v-else-if="hasEntries">
-      <button v-if="editing" type="button" class="edit" @click="editing = false">收合</button>
-      <div class="tools">
-        <input v-if="choice.options.length > 8" v-model="query" class="search" type="search" placeholder="搜尋（中文或英文）" />
+    <!-- 已選標籤列＋搜尋：清單型與按鈕型共用 -->
+    <template v-else>
+      <div v-if="selectedOptions.length && (choice.count > 1 || hiddenSelected)" class="picked-row" data-testid="picked-row">
+        <span class="muted">已選：</span>
+        <span v-for="o in selectedOptions" :key="o.value" class="picked">
+          {{ o.label }}
+          <button type="button" class="x" :title="`取消「${o.label}」`" :data-unpick="o.value" @click="toggle(o as ChoiceOption)">×</button>
+        </span>
+      </div>
+      <div v-if="searchable || legacyHidden || editing" class="tools">
+        <button v-if="editing" type="button" class="edit" @click="editing = false">收合</button>
+        <input v-if="searchable" v-model="query" class="search" type="search" placeholder="搜尋（中文或英文）" data-testid="slot-search" />
         <LegacyHint v-model="revealLegacy" :hidden="legacyHidden" />
       </div>
+      <p v-if="q && hiddenSelected" class="muted hidden-sel" data-testid="hidden-selected">另有 {{ hiddenSelected }} 個已選項目不符合搜尋</p>
+      <p v-if="q && !shown.length" class="muted">沒有符合「{{ query.trim() }}」的項目。</p>
+    </template>
+
+    <!-- 有條目的選項：可搜尋清單，點名稱展開說明 -->
+    <template v-if="choice.type !== 'abilityWeighted' && !collapsed && hasEntries">
       <ul class="entries">
         <li v-for="o in shown" :key="o.value" :class="{ sel: isSelected(o), off: blocked(o) }">
           <div class="row">
@@ -158,9 +179,9 @@ function blocked(o: ChoiceOption): boolean {
     </template>
 
     <!-- 一般選項：按鈕 -->
-    <div v-else class="chips">
+    <div v-else-if="choice.type !== 'abilityWeighted' && !collapsed" class="chips">
       <button
-        v-for="o in choice.options"
+        v-for="o in shown"
         :key="o.value"
         type="button"
         class="chip"
@@ -336,6 +357,29 @@ select,
   border-radius: var(--radius);
   color: var(--color-accent);
   font-size: 0.9rem;
+}
+.picked-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+.picked .x {
+  margin-left: 2px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.picked .x:hover {
+  color: var(--color-danger);
+}
+.hidden-sel {
+  margin: 0 0 var(--space-2);
+  font-size: 0.85rem;
 }
 .edit {
   padding: 0 var(--space-2);
