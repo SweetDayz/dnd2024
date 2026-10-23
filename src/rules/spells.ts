@@ -481,3 +481,42 @@ export function holderLabel(g: SpellGrant): string {
   const mode = g.kind === 'spellbook' ? '（法術書）' : ''
   return `${ORIGIN_TYPE[g.origin.type]}：${name}${mode}`
 }
+
+// ---------------------------------------------------------------------------
+// 施法總覽（M9-4）：職業以外的法術來源
+// ---------------------------------------------------------------------------
+
+export interface OtherSpellSource {
+  key: string
+  /** 「魔宠密友」「侏儒」「魔法学徒；牧师」 */
+  label: string
+  type: Origin['type']
+  ability?: Ability
+  dc?: number
+  attack?: number
+  /** 這個來源給的法術數 */
+  count: number
+}
+
+/** 種族、背景、專長、祈喚等給的法術來源，各自的施法屬性、法術 DC 與攻擊加值（M9.md §2.1「其他來源」卡） */
+export function otherSpellSources(rows: SpellRow[], mods: Record<Ability, number>, pb: number): OtherSpellSource[] {
+  const m = new Map<string, OtherSpellSource>()
+  for (const r of rows) {
+    for (const v of r.variants) {
+      const o = v.grant.origin
+      if (o.type === 'class' || o.type === 'subclass') continue
+      const key = `${o.entry?.id ?? o.name}|${v.ability ?? ''}`
+      const cur = m.get(key)
+      if (cur) cur.count++
+      else
+        m.set(key, {
+          key,
+          label: v.sourceLabel,
+          type: o.type,
+          ...(v.ability ? { ability: v.ability, ...spellDcAttack(mods[v.ability], pb) } : {}),
+          count: 1,
+        })
+    }
+  }
+  return [...m.values()]
+}

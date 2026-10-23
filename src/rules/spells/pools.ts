@@ -73,8 +73,18 @@ function ruleText(slot: SpellSlotChoice, book?: SpellbookInfo): string {
   if (book) {
     return `從${list}抄寫 1–${book.maxLevel} 環法術進法術書（${book.bookCap} 道），再從法術書中準備 ${book.prepCap} 道（${book.changeLabel}）。同一列點一下抄進法術書，再點一下設為準備。`
   }
-  const cells = sc.slots?.map((x) => (x.filter ? filterText(x.filter) : x.label)) ?? []
-  const from = cells.length ? [...new Set(cells)].join('或') : sc.filter ? filterText(sc.filter) : list ? `${list}的法術` : '法術'
+  const cells = [...new Set(sc.slots?.map((x) => (x.filter ? filterText(x.filter) : x.label)) ?? [])]
+  // 各格只有環位上限不同：寫成「法师清單的死灵系法術（每格的環位上限見下方）」
+  const from =
+    cells.length > 1 && sc.slots?.every((x) => x.filter)
+      ? `${filterText(sc.slots[0]!.filter!.replace(/(^||)level=[^|]*/, ''))}（每格的環位上限見下方）`
+      : cells.length
+        ? cells.join('或')
+        : sc.filter
+          ? filterText(sc.filter)
+          : list
+            ? `${list}的法術`
+            : '法術'
   switch (sc.kind) {
     case 'cantrip':
       return sc.role === 'cantrips' ? `從${list}選戲法。戲法依角色總等級升階。` : `從${from}選，直接學會${sc.free ? '，不占職業戲法數' : ''}。`

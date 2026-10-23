@@ -602,3 +602,37 @@ Vue 會把它們自動加到子元件的根元素（`<table>`）上，而且**�
 2. 寫元件：用 `useTablePrefsStore().get(tableId)` 取偏好，把 `FacetFilterPanel` 和 `SortableTable` 接起來
    （可參考 `components/languages/LanguageTable.vue`，最精簡）。
 3. 在 `check:file` 加上「點某個標籤、檢查剩下的列」「點欄位標題、檢查第一列」這類檢查。
+
+## M9：法術選擇重整用到的技巧
+
+### 具名 slot 帶參數（scoped slot）自訂表格的一欄
+
+`SortableTable` 原本第一欄只有勾選框或圓鈕。法師的法術書要一個「點兩下」的按鈕，所以加了 `select="custom"`：
+
+```vue
+<!-- SortableTable.vue：把這一列的資料交給使用的地方 -->
+<td v-if="select === 'custom'"><slot name="select" :row="r" /></td>
+
+<!-- SpellPickTable.vue：用 #select="{ row }" 接住，自己畫按鈕 -->
+<template #select="{ row: r }">
+  <button class="book-ctl" @click="emit('toggle', r.spell)">{{ BOOK_ICON[r.book] }}</button>
+</template>
+```
+
+通用元件不必知道「法術書」是什麼，只負責把列交出去；這就是 slot 的用途。
+
+### `v-memo`：清單很長時只重繪有變的列
+
+M9-0 量測到 525 列重繪約 200ms。`v-memo="[a, b, c]"` 的意思是「只有陣列裡的值變了才重新產生這一列的 DOM」：
+
+```vue
+<tr v-for="r in rows" :key="r.id" v-memo="memo ? memo(r) : [r]">
+```
+
+`SpellPickTable` 傳入的 `memo` 回傳這一列畫面會用到的所有狀態（是否選取、法術書狀態、提示、是否正在看詳情…）。漏放某個值，那個值改變時畫面就不會更新，所以要把列上所有會變的東西都放進去。
+
+### 整頁捲動＋`position: sticky`
+
+以前表格包在 `max-height: 60vh; overflow: auto` 的框裡，結果畫面有兩條捲軸。現在表格不設高度，跟著整頁捲；表頭用 `position: sticky; top: 0`，捲到下面時貼在視窗頂端。注意：sticky 的祖先只要有一層 `overflow: auto/hidden`，就會改成貼在那一層，而不是視窗，所以表格外面不能再包會捲動的框。
+
+右欄（已學會／詳情）同樣 sticky，但內容可能比視窗長，所以給它 `max-height: calc(100vh - 間距)` 和 `overflow-y: auto`，這是整個畫面唯一的次要捲動區。

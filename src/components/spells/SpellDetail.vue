@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // 法術詳情：完整內文、升環效果，以及「誰可以取得這道法術」（職業清單、子職、種族、背景、專長、其他特性）。
 // 職業清單依目前書目與 TCE 開關；TCE 擴充法術表的職業另外標示。
+// 預設 slot 放在最後：法術選擇畫面用它顯示「此角色取得的方式」與法師的「抄進法術書／設為準備」按鈕。
 import { computed } from 'vue'
 import { tagLabel } from '@/data/spellFilter'
 import { schoolName } from '@/data/summary'
 import type { Entry, SpellClassRef, SpellOrigins } from '@/data/types'
-import { castingTime, durationText, materialText, rangeText } from '@/rules/spells'
+import { castingTime, componentsText, durationText, materialText, rangeText } from '@/rules/spells'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
 import LegacyBadge from '../LegacyBadge.vue'
 import SourceBadge from '../SourceBadge.vue'
@@ -51,11 +52,21 @@ const origins = computed(() => {
       <SourceBadge :source="sp.source" :page="sp.page" />
       <LegacyBadge :entry="sp" @jump="(e: Entry) => emit('jump', e)" />
     </header>
-    <p class="meta">
-      {{ levelText }}・{{ schoolName(sp.school) }}<template v-if="(sp.meta as { ritual?: boolean })?.ritual">（儀式）</template>
-      ｜施法時間 {{ castingTime(sp) }}｜射程 {{ rangeText(sp) }}｜持續 {{ dur.concentration ? '專注，' : '' }}{{ dur.text }}
-    </p>
-    <p v-if="materialText(sp)" class="muted">材料：{{ materialText(sp) }}</p>
+    <p class="meta">{{ levelText }}・{{ schoolName(sp.school) }}<template v-if="(sp.meta as { ritual?: boolean })?.ritual">（儀式）</template></p>
+    <dl class="facts">
+      <dt>施法時間</dt>
+      <dd>{{ castingTime(sp) }}</dd>
+      <dt>射程</dt>
+      <dd>{{ rangeText(sp) }}</dd>
+      <dt>成分</dt>
+      <dd>{{ componentsText(sp) }}<template v-if="materialText(sp)">（{{ materialText(sp) }}）</template></dd>
+      <dt>持續時間</dt>
+      <dd>{{ dur.concentration ? '專注，' : '' }}{{ dur.text }}</dd>
+      <template v-if="dur.concentration || (sp.meta as { ritual?: boolean })?.ritual">
+        <dt>專注／儀式</dt>
+        <dd>{{ [dur.concentration && '需要專注', (sp.meta as { ritual?: boolean })?.ritual && '可以儀式施放'].filter(Boolean).join('、') }}</dd>
+      </template>
+    </dl>
     <EntryBlock v-if="sp.entries" :entry="sp.entries" />
     <EntryBlock v-if="sp.entriesHigherLevel" :entry="sp.entriesHigherLevel" />
     <dl class="who">
@@ -74,6 +85,7 @@ const origins = computed(() => {
         </dd>
       </template>
     </dl>
+    <slot />
   </article>
 </template>
 
@@ -96,6 +108,13 @@ h4 {
 }
 .meta {
   margin: var(--space-1) 0;
+  font-size: 0.85rem;
+}
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px var(--space-3);
+  margin: var(--space-1) 0 var(--space-2);
   font-size: 0.85rem;
 }
 .who {
