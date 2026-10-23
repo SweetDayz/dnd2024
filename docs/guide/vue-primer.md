@@ -243,3 +243,42 @@ describe('loadData', () => {
 5. `Failed to fetch` / `fetch` 相關錯誤 → 程式某處用了 `fetch` 讀資料，違反本專案規則，改用 `loadData()`。
 6. 沒有紅字但畫面空白 → 你開的可能是根目錄的 `index.html`（開發用，要經過 Vite），要開的是 **`dist/index.html`**。
 7. 懶得手動查：`npm run build && npm run check:file`，它會把上述錯誤都列出來。
+
+---
+
+## 8. M1 新出現的概念
+
+### 遞迴元件：元件裡用自己
+
+5etools 的內文是樹狀的（entries 裡有 list，list 裡有 item，item 裡又有 entries…），深度不固定。
+[EntryBlock.vue](../../src/components/entries/EntryBlock.vue) 的 template 裡直接寫 `<EntryBlock :entry="c" :depth="depth + 1" />`：
+`<script setup>` 的 SFC 可以用**自己的檔名**當標籤名稱來遞迴，不用 import。
+[RichText.vue](../../src/components/entries/RichText.vue) 也一樣：`{@b 粗體裡有{@spell 法術}}` 會一層一層渲染下去。
+
+### `<component :is="...">`：動態決定標籤
+
+`<component :is="depth === 0 ? 'h4' : 'h5'">` 依條件產生 `<h4>` 或 `<h5>`，免得寫兩份幾乎一樣的 template。
+
+### `markRaw` 與 `shallowRef`：大資料不要做深層響應式
+
+Vue 的 `ref({...})` 會把物件裡每一層都包成 Proxy，任何一層改變都能觸發畫面更新。
+資料檔有幾千筆、巢狀很深，而且載入後**永遠不會改**，深層追蹤只是浪費。
+[stores/catalog.ts](../../src/stores/catalog.ts) 的做法：
+
+- `markRaw(data)`：告訴 Vue「這個物件不要追蹤」。
+- `shallowRef(...)`：只追蹤 `.value` 本身被換掉，不追蹤裡面。
+- 一個 `version` 計數器：每載入一個檔案就 `+1`。查詢函式裡讀一下 `version.value`，用到它的 `computed` 就會在新資料進來時重算。
+
+### `<Teleport to="body">`：把元素搬到別處渲染
+
+tooltip 寫在 [EntryLink.vue](../../src/components/entries/EntryLink.vue) 裡，邏輯上屬於那個連結；
+但如果外層有 `overflow: hidden`，tooltip 會被裁掉。`<Teleport to="body">` 讓它實際被放到 `<body>` 底下，
+再用 `position: fixed` 加上連結的座標（`getBoundingClientRect()`）定位。
+
+### `defineProps` 的 TypeScript 寫法與 `withDefaults`
+
+```ts
+const props = withDefaults(defineProps<{ entry: unknown; depth?: number }>(), { depth: 0 })
+```
+
+用型別宣告 props（`?` 代表可省略），`withDefaults` 給預設值。父元件傳錯型別時，`vue-tsc` 型別檢查會報錯。
