@@ -5,6 +5,7 @@
 import { buildCharacter, type Build, type ChoiceSlot } from '@/rules/build'
 import { newCharacter, type Character } from '@/rules/character'
 import type { RulesData } from '@/rules/data'
+import { startingInventory } from '@/rules/equipment'
 
 export function choose(c: Character, data: RulesData, match: (s: ChoiceSlot) => boolean, values: string[]): Build {
   const b = buildCharacter(c, data)
@@ -65,5 +66,18 @@ export function benchmarkLevel(data: RulesData, n: number): Character {
     choose(c, data, byKey(`${EVOKER}:spells:0`), ['spell|燃烧之手|XPHB'])
     choose(c, data, byKey(`${EVOKER}:spells:1`), ['spell|魔法飞弹|XPHB'])
   }
+  return c
+}
+
+/** 套用起始裝備：法師 A、侍僧 A（同 DDB）。 */
+export function withStartingEquipment(c: Character, data: RulesData): Character {
+  const { items, currency } = startingInventory(data, [
+    { entry: data.get(WIZARD)!, picks: { 0: 'A' } },
+    { entry: data.get(ACOLYTE)!, picks: { 0: 'A' } },
+  ])
+  c.inventory = items
+  c.currency = currency
+  c.choices[`${WIZARD}:equip:0`] = ['A']
+  c.choices[`${ACOLYTE}:equip:0`] = ['A']
   return c
 }

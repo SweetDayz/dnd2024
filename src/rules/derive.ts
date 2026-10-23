@@ -9,6 +9,7 @@ import { ABILITIES, abilityMod, isAbility, proficiencyBonus, type Ability } from
 import type { Build, Origin, ProfGrant } from './build.ts'
 import type { Character } from './character.ts'
 import { profLabel, skillList, type ProfType, type RulesData } from './data.ts'
+import { armorClass, encumbrance, type ArmorClass, type Encumbrance } from './equipment.ts'
 import { spellSlots, type SpellSlots } from './multiclass.ts'
 
 export interface AbilityScore {
@@ -68,6 +69,8 @@ export interface Sheet {
   profs: Record<Exclude<ProfType, 'skill' | 'save' | 'expertise'>, ProfRow[]>
   /** 法術位（含兼職施法者等級與契約魔法） */
   spellcasting: SpellSlots
+  ac: ArmorClass
+  encumbrance: Encumbrance
 }
 
 /** 屬性值：基礎值依序加上各項加值；每項加值有上限（一般 20，傳奇恩惠 30）。 */
@@ -164,6 +167,13 @@ export function deriveSheet(c: Character, b: Build, data: RulesData): Sheet {
   const speeds = maxBy(b.speeds, (s) => s.mode, (s) => s.value)
   if (!speeds.some((s) => s.mode === 'walk')) speeds.unshift({ mode: 'walk', value: 30, origin: { type: 'rule', name: '預設', level: 1 } })
 
+  const profs = {
+    tool: groupProfs(data, b.profs, 'tool'),
+    language: groupProfs(data, b.profs, 'language'),
+    weapon: groupProfs(data, b.profs, 'weapon'),
+    armor: groupProfs(data, b.profs, 'armor'),
+  }
+
   return {
     level,
     profBonus: pb,
@@ -180,12 +190,9 @@ export function deriveSheet(c: Character, b: Build, data: RulesData): Sheet {
     hitDice: [...dice.entries()].map(([die, count]) => ({ die, count })),
     speeds,
     senses: maxBy(b.senses, (s) => s.type, (s) => s.range),
-    profs: {
-      tool: groupProfs(data, b.profs, 'tool'),
-      language: groupProfs(data, b.profs, 'language'),
-      weapon: groupProfs(data, b.profs, 'weapon'),
-      armor: groupProfs(data, b.profs, 'armor'),
-    },
+    profs,
     spellcasting: spellSlots(b.classes),
+    ac: armorClass(data, c, { abilities, profs }),
+    encumbrance: encumbrance(data, c, abilities.str.score, b.size?.value ?? 'M'),
   }
 }

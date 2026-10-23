@@ -48,6 +48,8 @@ export interface InventoryItem {
   equipped: boolean
   /** 放在哪裡：身上或背包 */
   container: 'equipment' | 'backpack'
+  /** 'start'：由「套用起始裝備」產生（重新套用時會被取代） */
+  from?: string
 }
 
 export interface Currency {

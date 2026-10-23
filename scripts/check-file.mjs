@@ -155,6 +155,18 @@ async function builderSmoke(page, problems) {
     if (dc.trim() !== '13') problems.push(`法術：1 級法術 DC 應為 13，畫面為 ${dc}`)
     if (!(await page.locator('[data-spell="雷鸣波"] [data-col="hit"]').first().innerText()).includes('13'))
       problems.push('法術：雷鳴波應顯示體質 DC 13')
+    // 裝備：法師 A、侍僧 A，套用後重量 49、AC 11、匕首 +5（1 級）
+    await page.click('[data-step="equipment"]')
+    await chip('class|法师|XPHB:equip:0', 'A')
+    await chip('background|侍僧|XPHB:equip:0', 'A')
+    await page.getByTestId('apply-equipment').click()
+    const carried = await page.getByTestId('carried').innerText()
+    if (carried.trim() !== '49') problems.push(`裝備：重量應為 49，畫面為 ${carried}`)
+    const ac = await page.getByTestId('ac').innerText()
+    if (ac.trim() !== '11') problems.push(`裝備：AC 應為 11，畫面為 ${ac}`)
+    const dagger = await page.locator('[data-attack="匕首"] [data-col="hit"]').first().innerText()
+    if (dagger.trim() !== '+3') problems.push(`攻擊：1 級匕首應為 +3，畫面為 ${dagger}`)
+
     await page.click('[data-step="confirm"]')
     await page.getByTestId('char-name').fill('基準侏儒法師')
 

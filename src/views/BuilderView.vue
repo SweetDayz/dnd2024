@@ -11,6 +11,7 @@ import StepConfirm from './builder/StepConfirm.vue'
 import StepLanguages from './builder/StepLanguages.vue'
 import StepLevels from './builder/StepLevels.vue'
 import StepSpells from './builder/StepSpells.vue'
+import StepEquipment from './builder/StepEquipment.vue'
 import StepProficiencies from './builder/StepProficiencies.vue'
 import StepRace from './builder/StepRace.vue'
 import StepSources from './builder/StepSources.vue'
@@ -27,6 +28,7 @@ const COMPONENTS: Record<string, Component> = {
   languages: StepLanguages,
   levels: StepLevels,
   spells: StepSpells,
+  equipment: StepEquipment,
   confirm: StepConfirm,
 }
 

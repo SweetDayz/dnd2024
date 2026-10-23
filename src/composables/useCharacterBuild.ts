@@ -8,6 +8,7 @@ import { computed } from 'vue'
 import { buildCharacter } from '@/rules/build'
 import { ABILITIES, type Ability } from '@/rules/abilities'
 import { deriveSheet } from '@/rules/derive'
+import { attackRows } from '@/rules/equipment'
 import { classCastings, spellcastingStats, spellRows } from '@/rules/spells'
 import { useCharacterStore } from '@/stores/character'
 import { useRulesData } from './useRulesData'
@@ -30,5 +31,11 @@ export function useCharacterBuild() {
   const casting = computed(() =>
     build.value && sheet.value ? spellcastingStats(classCastings(build.value.classes, mods.value), mods.value, sheet.value.profBonus) : [],
   )
-  return { data, ready, store, build, sheet, spells, casting }
+  /** 攻擊列：武器、徒手打擊、攻擊型法術 */
+  const attacks = computed(() =>
+    build.value && sheet.value && store.current
+      ? attackRows(data.value, store.current, build.value, sheet.value, spells.value)
+      : [],
+  )
+  return { data, ready, store, build, sheet, spells, casting, attacks }
 }

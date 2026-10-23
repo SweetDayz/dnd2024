@@ -160,7 +160,7 @@ function blocked(o: ChoiceOption): boolean {
 .slot.part {
   border-left-color: var(--color-dice);
 }
-.choice.done {
+.slot.done {
   border-left-color: var(--color-tce);
 }
 .head {

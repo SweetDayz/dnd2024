@@ -20,6 +20,7 @@ export const WIZARD_STEPS: WizardStep[] = [
   { id: 'languages', label: '語言', slotStep: 'languages' },
   { id: 'levels', label: '升級', slotStep: 'levels' },
   { id: 'spells', label: '法術', slotStep: 'spells' },
+  { id: 'equipment', label: '裝備', slotStep: 'equipment' },
   { id: 'confirm', label: '確認' },
 ]
 

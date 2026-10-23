@@ -362,6 +362,15 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 - 塑能學者這類「免費加入法術書」的子職法術是 `additionalSpells.known`（每個等級一個 `{choose: "level=…|class=法师|school=V"}`）；引擎把它們視為法術書內容，可被準備。
 - 魔法學徒的一環法術資料寫成 `innate.daily`（1/長休），原文說「始終準備」→ 角卡顯示為永遠準備＋1/長休，與 DDB 相同。
 
+### 12e. 裝備（M2d）
+
+- 起始裝備：2024 職業 `startingEquipment.defaultData = [{A: [...], B: [{value: 5500}]}]`，背景的 `startingEquipment` 直接是同格式陣列；2014 職業是多組 `{a, b}`／`{_}`，另有 `goldAlternative: "{@dice 4d4 × 10|…}"`（改拿金幣要擲骰）。
+- 項目寫法：`"名|來源"`、`{item, quantity, displayName}`、`{value}`（銅幣）、`{special: "法术书"}`（以名稱找物品，只有 PHB 的「法术书」，DDB 也標 Legacy）、`{equipmentType: "toolArtisan"}`（任選一件，引擎產生自訂物品讓玩家改名）、`{item: "小包", containsValue: 1500}`。
+- 套組（學者套組等）有 `packContents`，套用時展開成內容物放進背包（同 DDB）。基準角色套用法師 A＋侍僧 A 後重量 49 磅，與 DDB 相同（DDB 不計硬幣重量，本站也另計）。
+- 物品屬性 `itemProperty` 沒有中文 `name`（name 是縮寫），中文名在 `entries[0].name`。武器精通 `mastery: ["迅击|XPHB"]` 參照 `itemMastery`。
+- AC、負重是規則公式（無甲 10＋敏、輕甲＋敏、中甲＋敏最多 2、重甲、盾 +2、`bonusAc`；負重＝力量 ×15，依體型倍數）。無甲防禦等只有文字的特性列在效果頁並可手動覆寫。
+- 武器精通需要職業特性「武器精通」（engName `Weapon Mastery`）才能使用；有哪些武器可精通是原文，攻擊列只標示武器的精通名稱與是否具備該特性。
+
 ### 12c. 效果自動偵測（M2a 測試結果）
 
 用 XPHB 全部種族特質（含所有血系版本）與 XPHB 起源專長測試（`src/rules/effects.ts`）。

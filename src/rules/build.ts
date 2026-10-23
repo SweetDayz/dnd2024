@@ -14,6 +14,7 @@ import type { Entry } from '../data/types.ts'
 import { classFeatureRef, subclassFeatureRef } from '../data/classRefs.ts'
 import { ABILITIES, ABILITY_NAME, isAbility, type Ability } from './abilities.ts'
 import { abilityScores } from './derive.ts'
+import { goldAlternative, startingSets } from './equipment.ts'
 import { classCastings, classSpellList } from './spells.ts'
 import type { Character } from './character.ts'
 import {
@@ -1377,6 +1378,34 @@ function processClassSpells(ctx: Ctx) {
 }
 
 // ---------------------------------------------------------------------------
+// 起始裝備：起始職業與背景的 A/B 選項組
+// ---------------------------------------------------------------------------
+
+function processStartingEquipment(ctx: Ctx) {
+  const { out, c } = ctx
+  const primary = out.classes.find((i) => i.primary)?.entry
+  for (const e of [primary, out.background]) {
+    if (!e) continue
+    const origin: Origin = { type: e.kind === 'class' ? 'class' : 'background', name: e.name, entry: e, level: 1 }
+    const gold = goldAlternative(e)
+    // 2014 職業選了「改拿金幣」就不必選裝備組
+    if (gold && c.choices[`${e.id}:equip:gold`]?.length) continue
+    for (const set of startingSets(ctx.data, e)) {
+      if (set.options.length < 2) continue
+      addSlot(ctx, {
+        key: `${e.id}:equip:${set.index}`,
+        type: 'equipment',
+        label: `起始裝備（${e.name}）`,
+        origin,
+        step: 'equipment',
+        count: 1,
+        options: set.options.map((o) => ({ value: o.value, label: o.label })),
+      })
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 重複熟練
 // ---------------------------------------------------------------------------
 
@@ -1467,6 +1496,7 @@ export function buildCharacter(c: Character, data: RulesData): Build {
   processRace(ctx)
   processBaseLanguages(ctx)
   processClassSpells(ctx)
+  processStartingEquipment(ctx)
   resolveDuplicates(ctx)
   resolveExpertiseOptions(ctx)
   return out
