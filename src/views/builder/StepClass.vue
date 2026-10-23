@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // 第 2 步：起始職業。選了之後顯示 1 級的技能選擇等。
+// 這裡點別的職業是「換掉起始職業」，不是兼職；兼職在「升級」步驟（M7-4 加上提示，避免誤會）。
 import { computed } from 'vue'
 import EntryPicker from '@/components/builder/EntryPicker.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
@@ -8,6 +9,7 @@ import { ABILITY_NAME, isAbility } from '@/rules/abilities'
 import type { Entry } from '@/data/types'
 import SlotGroup from './SlotGroup.vue'
 
+const emit = defineEmits<{ goto: [step: string] }>()
 const { data, store } = useCharacterBuild()
 
 const classes = computed(() => data.value.list('class').filter((c) => canPick(data.value, c)))
@@ -31,6 +33,10 @@ const primary = (e: Entry) =>
 
 <template>
   <div class="step">
+    <p v-if="startId" class="hint" data-testid="multiclass-hint">
+      這裡選的是<strong>起始職業</strong>，點別的職業會把起始職業的所有等級換掉。要兼職第二個職業，請到
+      <button type="button" class="goto" data-testid="goto-levels" @click="emit('goto', 'levels')">「升級」步驟</button>。
+    </p>
     <EntryPicker :entries="classes" :model-value="startId" @update:model-value="setClass">
       <template #detail="{ entry }">
         <ul class="facts">
@@ -46,6 +52,18 @@ const primary = (e: Entry) =>
 </template>
 
 <style scoped>
+.hint {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+}
+.goto {
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
 .facts {
   margin: 0 0 var(--space-2);
   padding-left: var(--space-3);

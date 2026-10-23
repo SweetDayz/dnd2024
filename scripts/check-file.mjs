@@ -50,6 +50,7 @@ try {
   await builderSmoke(page, problems)
   await interactionSmoke(page, problems)
   await bardToolSmoke(page, problems)
+  await multiclassSmoke(page, problems)
   // 讓延遲載入的資料檔有機會報錯
   await page.waitForTimeout(300)
 } finally {
@@ -96,6 +97,91 @@ async function bardToolSmoke(page, problems) {
     if (!text.includes('鲁特琴')) problems.push('吟遊詩人工具熟練沒有魯特琴')
   } catch (err) {
     problems.push(`吟遊詩人工具熟練檢查失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
+  }
+}
+
+/**
+ * M7-4 第二驗收角色：從零建立法師 3／牧師 2（標準陣列，智力 15、感知 13），
+ * 檢查前置條件反灰、等級、熟練加值、法術位、HP、兩組法術 DC，匯出再匯入相同，審卡報告可產生。
+ * @param {import('playwright').Page} page
+ * @param {string[]} problems
+ */
+async function multiclassSmoke(page, problems) {
+  const WIZ = 'class|法师|XPHB'
+  const CLR = 'class|牧师|XPHB'
+  const setScores = async (scores) => {
+    await page.click('[data-step="abilities"]')
+    // 標準陣列同一個值只能用一次：先全部清空再指定
+    for (const a of Object.keys(scores)) await page.locator(`tr[data-ability="${a}"] select`).selectOption('')
+    for (const [a, v] of Object.entries(scores)) await page.locator(`tr[data-ability="${a}"] select`).selectOption(v)
+  }
+  const addCleric = page.locator(`[data-class="${CLR}"] [data-testid="add-class"]`)
+  try {
+    await page.click('[data-view="builder"]')
+    await page.getByTestId('new-character').click()
+    await page.click('[data-step="class"]')
+    await page.getByTestId('picker-search').fill('Wizard')
+    await page.click(`[data-id="${WIZ}"]`)
+    if (!(await page.getByTestId('multiclass-hint').count())) problems.push('兼職：職業步驟沒有「兼職請到升級步驟」的提示')
+
+    // 前置條件：感知 12 時牧師反灰並顯示原因
+    await setScores({ str: '8', dex: '13', con: '14', int: '15', wis: '12', cha: '10' })
+    await page.click('[data-step="levels"]')
+    await page.getByTestId('level-target').fill('3')
+    await page.getByTestId('level-to').click()
+    const mc = page.getByTestId('multiclass')
+    if (!(await mc.evaluate((d) => d.open))) await mc.locator('summary').click()
+    if (!(await addCleric.isDisabled())) problems.push('兼職：感知 12 時牧師應反灰')
+    const reason = await page.locator(`[data-class="${CLR}"] [data-testid="mc-reason"]`).innerText()
+    if (!reason.includes('感知 13+（目前 12 ✗）')) problems.push(`兼職：牧師反灰原因不對：${reason}`)
+
+    // 改回標準陣列（感知 13）→ 加兩級牧師
+    await setScores({ str: '8', dex: '12', con: '14', int: '15', wis: '13', cha: '10' })
+    await page.click('[data-step="levels"]')
+    if (!(await mc.evaluate((d) => d.open))) await mc.locator('summary').click()
+    await addCleric.click()
+    await addCleric.click()
+    const slots = await page.getByTestId('spell-slots').innerText()
+    if (!slots.includes('兼職施法者等級 5') || !slots.includes('1環×4、2環×3、3環×2')) problems.push(`兼職：法術位應為施法者等級 5、4/3/2，畫面為 ${slots}`)
+
+    await page.click('[data-step="confirm"]')
+    await page.getByTestId('char-name').fill('兼職法師牧師')
+    const hp = (await page.getByTestId('hp-max').innerText()).trim()
+    // 6 ＋ 4×2 ＋ 5×2 ＋ 5×體質 +2
+    if (hp !== '34') problems.push(`兼職：HP 應為 34，畫面為 ${hp}`)
+    const stats = (await page.getByTestId('confirm-stats').innerText()).replace(/\s+/g, ' ')
+    if (!stats.includes('等級 5') || !stats.includes('熟練加值 +3')) problems.push(`兼職：等級／熟練加值不對：${stats}`)
+
+    await page.click('[data-view="sheet"]')
+    const dc = async (id) => (await page.locator(`[data-casting="${id}"]`).innerText()).replace(/\s+/g, ' ')
+    const wiz = await dc(WIZ)
+    const clr = await dc(CLR)
+    if (!wiz.includes('DC 13') || !wiz.includes('攻擊 +5（智力）')) problems.push(`兼職：法師法術應為 DC 13／+5（智力），畫面為 ${wiz}`)
+    if (!clr.includes('DC 12') || !clr.includes('攻擊 +4（感知）')) problems.push(`兼職：牧師法術應為 DC 12／+4（感知），畫面為 ${clr}`)
+
+    // 匯出 → 匯入 → 再匯出相同、角卡相同
+    const snapshot = async () => (await page.getByTestId('sheet').innerText()).replace(/\s+/g, ' ')
+    const before = await snapshot()
+    const [d1] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').click()])
+    const path = await d1.path()
+    const exported = readFileSync(path, 'utf8')
+    // 前面的步驟可能留下沒用到的 once 監聽器，同一個對話框會被處理兩次，所以忽略重複 accept 的錯誤
+    page.once('dialog', (d) => d.accept().catch(() => {}))
+    await page.getByTestId('import-file').setInputFiles(path)
+    await page.getByTestId('bar-message').getByText('已匯入').waitFor({ timeout: 3000 })
+    const [d2] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').click()])
+    if (readFileSync(await d2.path(), 'utf8') !== exported) problems.push('兼職：匯出再匯入後，再次匯出的 JSON 不同')
+    if ((await snapshot()) !== before) problems.push('兼職：匯出再匯入後，角卡畫面不同')
+
+    // 審卡報告能正常產生
+    await page.getByTestId('review-open').click()
+    await page.getByTestId('review-preview').waitFor({ timeout: 3000 })
+    const preview = await page.frameLocator('[data-testid="review-frame"]').locator('body').innerText()
+    if (!preview.includes('牧师') || !preview.includes('12／+4')) problems.push('兼職：審卡報告缺少牧師法術 DC 12／+4')
+    if (await page.getByTestId('review-error').count()) problems.push(`兼職：審卡報告錯誤：${await page.getByTestId('review-error').innerText()}`)
+    await page.getByTestId('review-close').click()
+  } catch (err) {
+    problems.push(`兼職流程失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }
 }
 

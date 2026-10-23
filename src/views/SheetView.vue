@@ -133,7 +133,7 @@ const PROF_LABEL = ['—', '熟練', '專精'] as const
           <span>被動感知</span>
           <strong data-testid="sheet-pp"><OverrideValue k="passivePerception" :value="sheet.passive.perception" /><EffectMark field="passive" /></strong>
         </div>
-        <div v-for="cst in casting" :key="cst.casting.from.id" class="stat">
+        <div v-for="cst in casting" :key="cst.casting.from.id" class="stat" :data-casting="cst.casting.from.id">
           <span>{{ cst.casting.from.name }}法術</span>
           <strong data-testid="sheet-dc">DC {{ cst.dc }}</strong>
           <small>攻擊 {{ formatMod(cst.attack) }}（{{ ABILITY_NAME[cst.ability].zh }}）</small>

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // 升級：一級一級列出「這一級獲得的特性」與「需要做的選擇」（子職、屬性值提升或專長、可選特性…）。
 // 可以升起始職業，也可以兼職（檢查屬性條件）。每級 HP 取平均或擲骰（可重骰，保留紀錄）。
+// M7-4：兼職入口原本是「下拉選單＋另一顆 +1 級按鈕」，選了不會有反應、原因被截斷在選項文字裡，
+// 改成職業清單：每個職業一顆「＋1 級」，不能兼職的反灰並直接顯示原因。
 import { computed, ref } from 'vue'
 import SourceBadge from '@/components/SourceBadge.vue'
 import LegacyHint from '@/components/LegacyHint.vue'
-import { sourceAbbr } from '@/data/sourceDisplay'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
 import ChoiceSlotView from '@/components/builder/ChoiceSlotView.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
@@ -35,13 +36,15 @@ const classOptions = computed(() => {
     })
     .sort((a, b) => Number(b.own) - Number(a.own) || (a.entry.engName ?? '').localeCompare(b.entry.engName ?? ''))
 })
-const nextClass = ref<string>('')
 const target = ref(c.value.levels.length || 1)
+/** 屬性值還沒分配完：兼職條件會用 10 判斷，要提醒 */
+const scoresMissing = computed(() => Object.values(c.value.baseScores).some((v) => v === null))
+const levelOf = (id: string) => build.value?.classes.find((i) => i.entry.id === id)?.level ?? 0
 
-function addLevel(classId?: string) {
-  const id = classId || nextClass.value || c.value.levels[0]?.classId
-  if (!id || c.value.levels.length >= 20) return
-  store.update((ch) => ch.levels.push({ classId: id, hp: { mode: 'average' } }))
+function addLevel(classId: string) {
+  if (c.value.levels.length >= 20) return
+  store.update((ch) => ch.levels.push({ classId, hp: { mode: 'average' } }))
+  openLevels.value = new Set([c.value.levels.length])
 }
 function levelTo(n: number) {
   const id = c.value.levels[0]?.classId
@@ -107,23 +110,31 @@ const pendingAt = (r: { slots: { done: boolean; warnings: string[] }[] }) => r.s
         <label>
           升到
           <input v-model.number="target" type="number" min="1" max="20" data-testid="level-target" />
-          級（起始職業）
+          級
         </label>
         <button type="button" data-testid="level-to" @click="levelTo(target)">套用</button>
-        <span class="sep" />
-        <label>
-          新增一級：
-          <select v-model="nextClass" data-testid="next-class">
-            <option value="">{{ currentClasses[0]?.name }}（起始職業）</option>
-            <option v-for="o in classOptions" :key="o.entry.id" :value="o.entry.id" :disabled="!o.ok">
-              {{ o.entry.name }} {{ o.entry.engName }}（{{ sourceAbbr(o.entry.source) }}）{{ o.own ? '' : `兼職：${o.ok ? '可' : o.reasons.join('；')}` }}
-            </option>
-          </select>
-        </label>
-        <LegacyHint v-model="revealLegacy" :hidden="classSplit.hidden" />
-        <button type="button" :disabled="c.levels.length >= 20" data-testid="add-level" @click="addLevel()">＋1 級</button>
-        <button type="button" :disabled="c.levels.length <= 1" @click="removeLast">移除第 {{ c.levels.length }} 級</button>
+        <small class="muted">（只升起始職業 {{ currentClasses[0]?.name }}；兼職用下方清單）</small>
+        <button type="button" :disabled="c.levels.length <= 1" data-testid="remove-level" @click="removeLast">移除第 {{ c.levels.length }} 級</button>
       </section>
+
+      <details class="multiclass" data-testid="multiclass" :open="currentClasses.length > 1">
+        <summary>新增一級／兼職（目前 {{ currentClasses.length }} 個職業）</summary>
+        <p v-if="scoresMissing" class="warn" data-testid="mc-scores-missing">
+          屬性值還沒分配完，未分配的屬性以 10 判斷兼職條件。請先到「屬性值」步驟。
+        </p>
+        <ul class="class-list">
+          <li v-for="o in classOptions" :key="o.entry.id" :data-class="o.entry.id" :class="{ own: o.own, blocked: !o.ok }">
+            <button type="button" :disabled="!o.ok || c.levels.length >= 20" data-testid="add-class" @click="addLevel(o.entry.id)">＋1 級</button>
+            <strong>{{ o.entry.name }}</strong>
+            <small class="muted">{{ o.entry.engName }}</small>
+            <SourceBadge :source="o.entry.source" :page="o.entry.page" />
+            <small v-if="o.own" class="own-lv">目前 {{ levelOf(o.entry.id) }} 級</small>
+            <small v-else-if="o.ok" class="ok">可兼職：{{ requirementText(multiclassRequirement(o.entry), scores) }}</small>
+            <small v-else class="reason" data-testid="mc-reason">{{ o.reasons.join('；') }}</small>
+          </li>
+        </ul>
+        <LegacyHint v-model="revealLegacy" :hidden="classSplit.hidden" />
+      </details>
 
       <section v-if="sheet" class="casting">
         <span>角色等級 {{ c.levels.length }}：</span>
@@ -188,8 +199,42 @@ const pendingAt = (r: { slots: { done: boolean; warnings: string[] }[] }) => r.s
   gap: var(--space-2);
   margin-bottom: var(--space-2);
 }
-.sep {
-  width: var(--space-3);
+.multiclass {
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.multiclass summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.class-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0;
+  padding: 0;
+  list-style: none;
+}
+.class-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.class-list li.blocked strong {
+  color: var(--color-text-muted);
+}
+.own-lv {
+  color: var(--color-accent);
+}
+.ok {
+  color: var(--color-tce);
+}
+.reason,
+.warn {
+  color: var(--color-danger);
 }
 input,
 select,
