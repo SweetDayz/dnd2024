@@ -282,3 +282,14 @@ const props = withDefaults(defineProps<{ entry: unknown; depth?: number }>(), { 
 ```
 
 用型別宣告 props（`?` 代表可省略），`withDefaults` 給預設值。父元件傳錯型別時，`vue-tsc` 型別檢查會報錯。
+
+### `watch`：狀態改變時做副作用
+
+[stores/sourceFilter.ts](../../src/stores/sourceFilter.ts) 用 `watch([groupId, enabled, showLegacy, tceOptional], save)`：
+任何一個值改變就把整份篩選狀態寫進 `localStorage`。`computed` 用來「算出新值」，`watch` 用來「值變了就去做某件事」（存檔、記 log…）。
+store 建立時先 `load()` 一次，所以重開頁面會還原上次的設定。
+
+### `v-model` 綁 checkbox
+
+`<input v-model="filter.showLegacy" type="checkbox">`：勾選狀態與 store 的布林值雙向同步，不用自己寫 `@change`。
+單本勾選那裡則用 `:checked` + `@change` 手動呼叫 `toggleSource()`，因為勾選一本書還要順便判斷「是否仍等於某個群組」。

@@ -44,4 +44,3 @@ raw
 # fetch-data 的 git 快取
 .cache
 public/data/*.js
-!public/data/demo.js

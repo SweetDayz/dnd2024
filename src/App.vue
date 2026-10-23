@@ -1,49 +1,73 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { loadData } from '@/data/loader'
+import { onMounted } from 'vue'
+import SourceFilterPanel from '@/components/SourceFilterPanel.vue'
+import { useCatalogStore } from '@/stores/catalog'
 
-interface DemoData {
-  message: string
-}
-
-// ref() 建立「會觸發畫面更新」的變數；在 <template> 裡直接用名字讀取。
-const demoMessage = ref<string | null>(null)
-const loadError = ref<string | null>(null)
+const catalog = useCatalogStore()
 
 onMounted(async () => {
   try {
-    const demo = await loadData<DemoData>('demo')
-    demoMessage.value = demo.message
+    await catalog.loadSources()
   } catch (err) {
-    loadError.value = err instanceof Error ? err.message : String(err)
+    catalog.errors.push(err instanceof Error ? err.message : String(err))
   }
 })
 </script>
 
 <template>
-  <main class="page">
-    <h1>Hello DND</h1>
-    <p v-if="loadError" class="error" data-testid="demo-error">{{ loadError }}</p>
-    <p v-else-if="demoMessage" data-testid="demo-line">{{ demoMessage }}</p>
-    <p v-else class="muted">資料載入中…</p>
-  </main>
+  <div class="layout">
+    <header class="top">
+      <h1>D&amp;D 2024 角色建立器</h1>
+      <span class="muted">M1：資料瀏覽</span>
+    </header>
+    <aside class="side">
+      <SourceFilterPanel />
+    </aside>
+    <main class="main">
+      <p v-for="e in catalog.errors" :key="e" class="error" data-testid="load-error">{{ e }}</p>
+      <p class="muted">選項瀏覽器（M1-6）</p>
+    </main>
+  </div>
 </template>
 
 <style scoped>
-.page {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: var(--space-4);
+.layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    'top top'
+    'side main';
+  min-height: 100vh;
 }
-
+.top {
+  grid-area: top;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
 h1 {
+  margin: 0;
+  font-size: 1.25rem;
   color: var(--color-accent);
 }
-
+.side {
+  grid-area: side;
+  padding: var(--space-3);
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.main {
+  grid-area: main;
+  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+}
 .muted {
   color: var(--color-text-muted);
 }
-
 .error {
   color: var(--color-danger);
 }

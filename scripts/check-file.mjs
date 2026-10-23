@@ -15,7 +15,7 @@ if (!existsSync(indexPath)) {
 const url = pathToFileURL(indexPath).href
 
 /** 頁面上必須出現的文字（smoke check）。 */
-const EXPECTED_TEXT = ['Hello DND', '示範資料載入成功']
+const EXPECTED_TEXT = ['D&D 2024 角色建立器', '套用「官方」', '目前：官方']
 
 const problems = []
 const browser = await chromium.launch()

@@ -58,9 +58,9 @@ const raw: RawInput = {
 const dataset = buildDataset(raw, { whitelist: SOURCE_WHITELIST, sources })
 
 mkdirSync(OUT, { recursive: true })
-// 清掉舊的輸出（保留 M0 的 demo.js）
+// 清掉舊的輸出
 for (const f of readdirSync(OUT)) {
-  if (f.endsWith('.js') && f !== 'demo.js') writeFileSync(resolve(OUT, f), '')
+  if (f.endsWith('.js')) writeFileSync(resolve(OUT, f), '')
 }
 
 function writeData(file: string, data: unknown) {
