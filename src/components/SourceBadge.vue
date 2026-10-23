@@ -1,23 +1,19 @@
 <script setup lang="ts">
-// 來源書徽章，例如「XPHB p.165」。滑鼠停留會顯示完整書名。
+// 來源書徽章，例如「PHB24 p.165」（內部代碼 XPHB 只在 tooltip 顯示，見 src/data/sourceDisplay.ts）。
+// 滑鼠停留會顯示中英文書名、原始代碼、出版日期。
 import { computed } from 'vue'
+import { formatSource, sourceTooltip } from '@/data/sourceDisplay'
 import { useCatalogStore } from '@/stores/catalog'
 
 // 條目本身缺頁碼時顯示 p.?（目前只有上游 AU 的部分資料如此），讓使用者知道不是漏顯示。
 const props = defineProps<{ source: string; page?: number | string }>()
 const catalog = useCatalogStore()
 
-const title = computed(() => {
-  const s = catalog.sourceMap.get(props.source)
-  const book = s ? `${s.name}（${s.engName}，${s.published}）` : props.source
-  return props.page === undefined ? `${book}\n上游資料沒有頁碼` : book
-})
+const title = computed(() => sourceTooltip(props.source, catalog.sourceMap.get(props.source), props.page))
 </script>
 
 <template>
-  <span class="badge" :title="title" data-testid="source-badge">
-    {{ source }}<template v-if="page !== undefined"> p.{{ page }}</template><template v-else> p.?</template>
-  </span>
+  <span class="badge" :title="title" :data-source="source" data-testid="source-badge">{{ formatSource(source, page) }}</span>
 </template>
 
 <style scoped>

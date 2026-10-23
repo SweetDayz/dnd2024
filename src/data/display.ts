@@ -2,6 +2,7 @@
  * 列表上每筆條目的簡短說明（法術環位、物品稀有度、專長分類…）。純函式。
  * 用詞沿用上游簡體；不認得的代碼直接顯示原代碼，避免猜錯。
  */
+import { sourceAbbr } from './sourceDisplay.ts'
 import { schoolName, spellLevelText } from './summary.ts'
 import type { Entry } from './types.ts'
 
@@ -63,7 +64,7 @@ export function metaLine(e: Entry): string {
     case 'optionalfeature':
       return ((e.featureType as string[] | undefined) ?? []).map(featureTypeName).join('、')
     case 'subclass':
-      return `${e.className}（${e.classSource}）`
+      return `${e.className}（${sourceAbbr(String(e.classSource))}）`
     default:
       return ''
   }

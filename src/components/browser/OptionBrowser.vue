@@ -3,6 +3,7 @@
 // 每個分頁第一次被打開時才載入對應的資料檔（避免一開頁就讀 7 MB）。
 import { computed, ref, watch } from 'vue'
 import type { EntryKind } from '@/data/ids'
+import { entryMatches, sourceAbbr } from '@/data/sourceDisplay'
 import { schoolName, spellLevelText } from '@/data/summary'
 import type { DataFileName, Entry, SpellClassRef } from '@/data/types'
 import { useCatalogStore } from '@/stores/catalog'
@@ -56,7 +57,7 @@ const classOptions = computed(() =>
   catalog
     .list('class')
     .filter(filter.visible)
-    .map((c) => ({ key: `${c.name}|${c.source}`, label: `${c.name}（${c.source}）` })),
+    .map((c) => ({ key: `${c.name}|${c.source}`, label: `${c.name}（${sourceAbbr(c.source)}）` })),
 )
 
 function spellHasClass(sp: Entry, key: string): boolean {
@@ -72,12 +73,7 @@ const results = computed(() => {
   const q = query.value.trim().toLowerCase()
   let list = visible.value
   if (q) {
-    list = list.filter(
-      (e) =>
-        e.name.toLowerCase().includes(q) ||
-        e.engName?.toLowerCase().includes(q) ||
-        (e.alias as string[] | undefined)?.some((a) => a.toLowerCase().includes(q)),
-    )
+    list = list.filter((e) => entryMatches(e, q))
   }
   if (tabId.value === 'spell') {
     if (spellLevel.value !== '') list = list.filter((e) => String(e.level) === spellLevel.value)
@@ -116,7 +112,7 @@ function subracesOf(race: Entry): Entry[] {
     </nav>
 
     <div class="toolbar">
-      <input v-model="query" type="search" placeholder="搜尋中文或英文名…" data-testid="search" />
+      <input v-model="query" type="search" placeholder="搜尋中文或英文名，或來源（PHB24／XPHB）…" data-testid="search" />
       <template v-if="tabId === 'spell'">
         <select v-model="spellLevel" data-testid="spell-level">
           <option value="">全部環位</option>

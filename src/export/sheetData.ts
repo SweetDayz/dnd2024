@@ -5,6 +5,7 @@
  * 不重新計算任何數值。輸出是純資料（工作表名稱、欄位、每列的值），
  * 由 xlsx.ts 交給 ExcelJS 寫檔；拆開是為了讓這一層不依賴 ExcelJS、也好測試。
  */
+import { formatSource } from '@/data/sourceDisplay'
 import { entriesToText } from '@/data/text'
 import type { Entry, SourceInfo } from '@/data/types'
 import { ABILITIES, ABILITY_NAME, formatMod } from '@/rules/abilities'
@@ -75,7 +76,7 @@ const FEATURE_CAT: Record<Feature['category'], string> = {
 function sourceText(sources: Map<string, SourceInfo>, e: Pick<Entry, 'source' | 'page'> | undefined): string {
   if (!e) return ''
   const book = sources.get(e.source)
-  return `${e.source} p.${e.page ?? '?'}${book ? `（${book.name}／${book.engName}）` : ''}`
+  return `${formatSource(e.source, e.page)}${book ? `（${book.name}／${book.engName}）` : ''}`
 }
 
 /** 5etools 物品價值（cp）→ 文字 */

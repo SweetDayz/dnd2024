@@ -1,0 +1,370 @@
+{
+  "format": "dnd2024-character",
+  "schemaVersion": 1,
+  "character": {
+    "schemaVersion": 1,
+    "id": "cmvky503o1ajhk",
+    "name": "基準侏儒法師",
+    "raceId": "race|侏儒|XPHB",
+    "backgroundId": "background|侍僧|XPHB",
+    "levels": [
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      }
+    ],
+    "abilityMethod": "standard",
+    "baseScores": {
+      "str": 8,
+      "dex": 12,
+      "con": 14,
+      "int": 15,
+      "wis": 13,
+      "cha": 10
+    },
+    "rolledPool": [],
+    "choices": {
+      "class|法师|XPHB:skill:0": [
+        "arcana",
+        "investigation"
+      ],
+      "background|侍僧|XPHB:ability:alt": [
+        "0"
+      ],
+      "background|侍僧|XPHB:ability:w": [
+        "wis",
+        "int"
+      ],
+      "race|侏儒|XPHB:version": [
+        "race|侏儒；岩侏儒血系|XPHB"
+      ],
+      "race|侏儒|XPHB:spells:ability": [
+        "int"
+      ],
+      "base:languages": [
+        "dwarvish",
+        "gnomish"
+      ],
+      "background|侍僧|XPHB:feat>feat|魔法学徒；牧师|XPHB:spells:ability": [
+        "wis"
+      ],
+      "background|侍僧|XPHB:feat>feat|魔法学徒；牧师|XPHB:spells:0": [
+        "spell|神导术|XPHB",
+        "spell|修复术|XPHB"
+      ],
+      "background|侍僧|XPHB:feat>feat|魔法学徒；牧师|XPHB:spells:1": [
+        "spell|光导箭|XPHB"
+      ],
+      "class|法师|XPHB:cantrips": [
+        "spell|光亮术|XPHB",
+        "spell|法师之手|XPHB",
+        "spell|冷冻射线|XPHB"
+      ],
+      "class|法师|XPHB:spellbook": [
+        "spell|侦测魔法|XPHB",
+        "spell|法师护甲|XPHB",
+        "spell|魔法飞弹|XPHB",
+        "spell|睡眠术|XPHB",
+        "spell|雷鸣波|XPHB",
+        "spell|护盾术|XPHB"
+      ],
+      "class|法师|XPHB:prepared": [
+        "spell|法师护甲|XPHB",
+        "spell|魔法飞弹|XPHB",
+        "spell|睡眠术|XPHB",
+        "spell|雷鸣波|XPHB"
+      ],
+      "class|法师|XPHB:subclass": [
+        "subclass|塑能师|XPHB|法师|XPHB"
+      ],
+      "subclass|塑能师|XPHB|法师|XPHB:spells:0": [
+        "spell|燃烧之手|XPHB"
+      ],
+      "subclass|塑能师|XPHB|法师|XPHB:spells:1": [
+        "spell|魔法飞弹|XPHB"
+      ],
+      "class|法师|XPHB:equip:0": [
+        "A"
+      ],
+      "background|侍僧|XPHB:equip:0": [
+        "A"
+      ]
+    },
+    "inventory": [
+      {
+        "uid": "imvky50660",
+        "itemId": "item|匕首|XPHB",
+        "qty": 2,
+        "equipped": true,
+        "container": "equipment",
+        "from": "start"
+      },
+      {
+        "uid": "imvky50661",
+        "itemId": "item|长棍|XPHB",
+        "qty": 1,
+        "equipped": true,
+        "container": "equipment",
+        "from": "start"
+      },
+      {
+        "uid": "imvky50662",
+        "itemId": "item|法袍|XPHB",
+        "qty": 1,
+        "equipped": false,
+        "container": "equipment",
+        "from": "start"
+      },
+      {
+        "uid": "imvky50663",
+        "itemId": "item|法术书|PHB",
+        "qty": 1,
+        "equipped": false,
+        "container": "equipment",
+        "from": "start"
+      },
+      {
+        "uid": "imvky50664",
+        "itemId": "item|背包|XPHB",
+        "name": "背包",
+        "qty": 1,
+        "equipped": false,
+        "container": "backpack",
+        "from": "start"
+      },
+      {
+        "uid": "imvky50665",
+        "itemId": "item|书籍|XPHB",
+        "name": "书籍",
+        "qty": 1,
+        "equipped": false,
+        "container": "backpack",
+        "from": "start"
+      },
+      {
+        "uid": "imvky50666",
+        "itemId": "item|墨水|XPHB",
+        "name": "墨水",
+        "qty": 1,
+        "equipped": false,
+        "container": "backpack",
+        "from": "start"
+      },
+      {
+        "uid": "imvky50667",
+        "itemId": "item|墨水笔|XPHB",
+        "name": "墨水笔",
+        "qty": 1,
+        "equipped": false,
+        "container": "backpack",
+        "from": "start"
+      },
+      {
+        "uid": "imvky50668",
+        "itemId": "item|油灯|XPHB",
+        "name": "油灯",
+        "qty": 1,
+        "equipped": false,
+        "container": "backpack",
+        "from": "start"
+      },
+      {
+        "uid": "imvky50669",
+        "itemId": "item|燃油|XPHB",
+        "name": "燃油",
+        "qty": 10,
+        "equipped": false,
+        "container": "backpack",
+        "from": "start"
+      },
+      {
+        "uid": "imvky5066a",
+        "itemId": "item|羊皮纸|XPHB",
+        "name": "羊皮纸",
+        "qty": 10,
+        "equipped": false,
+        "container": "backpack",
+        "from": "start"
+      },
+      {
+        "uid": "imvky5066b",
+        "itemId": "item|火绒盒|XPHB",
+        "name": "火绒盒",
+        "qty": 1,
+        "equipped": false,
+        "container": "backpack",
+        "from": "start"
+      },
+      {
+        "uid": "imvky5066c",
+        "itemId": "item|书籍|XPHB",
+        "name": "祈祷书",
+        "qty": 1,
+        "equipped": false,
+        "container": "equipment",
+        "from": "start"
+      },
+      {
+        "uid": "imvky5066d",
+        "itemId": "item|书法工具|XPHB",
+        "qty": 1,
+        "equipped": false,
+        "container": "equipment",
+        "from": "start"
+      },
+      {
+        "uid": "imvky5066e",
+        "itemId": "item|圣徽|XPHB",
+        "qty": 1,
+        "equipped": false,
+        "container": "equipment",
+        "from": "start"
+      },
+      {
+        "uid": "imvky5066f",
+        "itemId": "item|羊皮纸|XPHB",
+        "qty": 10,
+        "equipped": false,
+        "container": "equipment",
+        "from": "start"
+      },
+      {
+        "uid": "imvky5066g",
+        "itemId": "item|法袍|XPHB",
+        "qty": 1,
+        "equipped": false,
+        "container": "equipment",
+        "from": "start"
+      }
+    ],
+    "currency": {
+      "cp": 0,
+      "sp": 0,
+      "ep": 0,
+      "gp": 13,
+      "pp": 0
+    },
+    "overrides": {},
+    "details": {},
+    "notes": "",
+    "rollLog": [],
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  }
+}

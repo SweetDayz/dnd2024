@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // 書目篩選面板：套用群組、目前啟用的書、兩個開關，以及（預覽中的）單本勾選。
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { sourceAbbr, sourceMatches } from '@/data/sourceDisplay'
 import { SOURCE_GROUPS } from '@/data/sourceGroups'
+import type { SourceInfo } from '@/data/types'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
 
@@ -11,6 +13,14 @@ const catalog = useCatalogStore()
 const groups = Object.values(SOURCE_GROUPS)
 const enabledBooks = computed(() => catalog.sources.filter((s) => filter.enabledSet.has(s.source)))
 const groupLabel = computed(() => (filter.groupId ? SOURCE_GROUPS[filter.groupId]?.label : '自訂'))
+
+// 書目搜尋：輸入縮寫（PHB24）或原始代碼（XPHB）完整比對，或中英文書名的一部分
+const bookQuery = ref('')
+const bookHit = (s: SourceInfo) => {
+  const q = bookQuery.value.trim().toLowerCase()
+  return !q || sourceMatches(s.source, q) || s.name.toLowerCase().includes(q) || s.engName.toLowerCase().includes(q)
+}
+const shownBooks = computed(() => catalog.sources.filter(bookHit))
 </script>
 
 <template>
@@ -33,7 +43,7 @@ const groupLabel = computed(() => (filter.groupId ? SOURCE_GROUPS[filter.groupId
 
     <label class="switch">
       <input v-model="filter.showLegacy" type="checkbox" data-testid="toggle-legacy" />
-      顯示已被取代的 2014 舊版
+      顯示已被重印取代的版本
     </label>
     <label class="switch">
       <input v-model="filter.tceOptional" type="checkbox" data-testid="toggle-tce" />
@@ -45,7 +55,7 @@ const groupLabel = computed(() => (filter.groupId ? SOURCE_GROUPS[filter.groupId
       <summary>已啟用的書目</summary>
       <ul>
         <li v-for="s in enabledBooks" :key="s.source">
-          <code>{{ s.source }}</code> {{ s.name }} <small class="muted">{{ s.engName }}</small>
+          <code :title="s.source">{{ sourceAbbr(s.source) }}</code> {{ s.name }} <small class="muted">{{ s.engName }}</small>
         </li>
       </ul>
     </details>
@@ -53,8 +63,9 @@ const groupLabel = computed(() => (filter.groupId ? SOURCE_GROUPS[filter.groupId
     <!-- 單本勾選：之後的里程碑才正式開放，先收在這裡（預覽） -->
     <details class="books" data-testid="per-book">
       <summary>單本勾選（預覽）</summary>
+      <input v-model="bookQuery" type="search" class="book-search" placeholder="搜尋書目（PHB24、XPHB、書名）" data-testid="book-search" />
       <ul>
-        <li v-for="s in catalog.sources" :key="s.source">
+        <li v-for="s in shownBooks" :key="s.source">
           <label>
             <input
               type="checkbox"
@@ -62,8 +73,8 @@ const groupLabel = computed(() => (filter.groupId ? SOURCE_GROUPS[filter.groupId
               :data-source="s.source"
               @change="filter.toggleSource(s.source, ($event.target as HTMLInputElement).checked)"
             />
-            <code>{{ s.source }}</code> {{ s.name }}
-            <small class="muted">{{ s.edition }}・{{ s.type === 'book' ? '規則書' : '冒險' }}</small>
+            <code :title="s.source">{{ sourceAbbr(s.source) }}</code> {{ s.name }}
+            <small class="muted"><template v-if="sourceAbbr(s.source) !== s.source">{{ s.source }}・</template>{{ s.edition }}・{{ s.type === 'book' ? '規則書' : '冒險' }}</small>
           </label>
         </li>
       </ul>
@@ -126,5 +137,14 @@ button.active {
 }
 code {
   color: var(--color-badge-text);
+}
+.book-search {
+  width: 100%;
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: inherit;
 }
 </style>

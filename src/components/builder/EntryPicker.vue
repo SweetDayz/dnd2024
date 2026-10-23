@@ -3,6 +3,7 @@
 // 每個選項都有來源徽章；2014 條目標示「2014」，被 2024 版取代的舊版標示「已有 2024 版」。
 import { computed, ref } from 'vue'
 import { metaLine } from '@/data/display'
+import { entryMatches } from '@/data/sourceDisplay'
 import type { Entry } from '@/data/types'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
 import SourceBadge from '../SourceBadge.vue'
@@ -17,9 +18,7 @@ const previewId = ref<string | null>(props.modelValue)
 
 const shown = computed(() => {
   const q = query.value.trim().toLowerCase()
-  const list = q
-    ? props.entries.filter((e) => e.name.toLowerCase().includes(q) || e.engName?.toLowerCase().includes(q))
-    : props.entries
+  const list = q ? props.entries.filter((e) => entryMatches(e, q)) : props.entries
   // 2024 版排前面，再依英文名排序
   return [...list].sort(
     (a, b) => (a.edition === b.edition ? 0 : a.edition === '2024' ? -1 : 1) || (a.engName ?? a.name).localeCompare(b.engName ?? b.name),

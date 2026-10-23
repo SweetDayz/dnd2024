@@ -2,6 +2,7 @@
 // 可連結的標籤（法術、物品、狀態…）。滑鼠移上去時才載入對應資料檔，並顯示摘要 tooltip。
 // tooltip 用 <Teleport to="body"> 搬到 <body> 底下，避免被外層 overflow: hidden 裁掉。
 import { computed, ref } from 'vue'
+import { sourceAbbr } from '@/data/sourceDisplay'
 import { summarize } from '@/data/summary'
 import type { TagView } from '@/data/tags'
 import { fileOfKind, indexKey, useCatalogStore } from '@/stores/catalog'
@@ -52,7 +53,7 @@ function hide() {
         <p class="body">{{ summarize(entry) }}</p>
       </template>
       <p v-else-if="!catalog.isLoaded(file)" class="muted">載入中…</p>
-      <p v-else class="muted">找不到「{{ view.name }}｜{{ view.source }}」（該書可能不在白名單內）</p>
+      <p v-else class="muted">找不到「{{ view.name }}｜{{ sourceAbbr(view.source) }}」（該書可能不在白名單內）</p>
     </div>
   </Teleport>
 </template>

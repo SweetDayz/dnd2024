@@ -3,6 +3,7 @@
 // 可以升起始職業，也可以兼職（檢查屬性條件）。每級 HP 取平均或擲骰（可重骰，保留紀錄）。
 import { computed, ref } from 'vue'
 import SourceBadge from '@/components/SourceBadge.vue'
+import { sourceAbbr } from '@/data/sourceDisplay'
 import ChoiceSlotView from '@/components/builder/ChoiceSlotView.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import { ABILITIES, type Ability } from '@/rules/abilities'
@@ -110,7 +111,7 @@ const pendingAt = (r: { slots: { done: boolean; warnings: string[] }[] }) => r.s
           <select v-model="nextClass" data-testid="next-class">
             <option value="">{{ currentClasses[0]?.name }}（起始職業）</option>
             <option v-for="o in classOptions" :key="o.entry.id" :value="o.entry.id" :disabled="!o.ok">
-              {{ o.entry.name }} {{ o.entry.engName }}（{{ o.entry.source }}）{{ o.own ? '' : `兼職：${o.ok ? '可' : o.reasons.join('；')}` }}
+              {{ o.entry.name }} {{ o.entry.engName }}（{{ sourceAbbr(o.entry.source) }}）{{ o.own ? '' : `兼職：${o.ok ? '可' : o.reasons.join('；')}` }}
             </option>
           </select>
         </label>

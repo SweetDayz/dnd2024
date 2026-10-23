@@ -78,6 +78,19 @@ async function interactionSmoke(page, problems) {
       if (rows !== badges) problems.push(`分頁 ${tab}：${rows} 列只有 ${badges} 個來源徽章`)
     }
 
+    // M4-1：徽章顯示縮寫（PHB24），搜尋縮寫或原始代碼結果相同
+    await page.click('[data-tab="race"]')
+    await waitCount()
+    const texts = await page.locator('[data-testid="source-badge"]').allInnerTexts()
+    if (texts.some((t) => /^(XPHB|XDMG|XMM) /.test(t))) problems.push('徽章仍顯示原始代碼 XPHB（應為 PHB24）')
+    if (!texts.some((t) => t.startsWith('PHB24 p.'))) problems.push('徽章沒有出現 PHB24 縮寫')
+    await page.getByTestId('search').fill('PHB24')
+    const byAbbr = await page.getByTestId('count').innerText()
+    await page.getByTestId('search').fill('xphb')
+    const byCode = await page.getByTestId('count').innerText()
+    if (byAbbr !== byCode || !/符合條件 [1-9]/.test(byAbbr)) problems.push(`搜尋 PHB24 與 XPHB 結果不同：${byAbbr}／${byCode}`)
+    await page.getByTestId('search').fill('')
+
     // 展開法師，hover 第一個連結要出現 tooltip 摘要
     await page.click('[data-tab="class"]')
     await page.getByTestId('search').fill('Wizard')
