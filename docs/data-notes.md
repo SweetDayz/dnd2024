@@ -108,7 +108,29 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 `race.lineage === "VRGR"`（鴉閣魔域血系）是 VRGR 本身的規則，不算 TCE 可選規則。
 背景沒有 TCE 相關的可選欄位（TCE 沒有背景）。
 
-## 10. 來源對照表
+## 10. 建置輸出（`npm run build-data`）
+
+管線在 `scripts/lib/pipeline.ts`（純函式，測試在 `scripts/lib/__tests__/`），`scripts/build-data.ts` 只負責讀檔與寫檔。
+
+| 檔案 | 內容 | 大小（official） |
+| ---- | ---- | ---- |
+| `sources.js` | 白名單內的來源對照表 | 6 KB |
+| `races.js` | race 127、subrace 70 | 367 KB |
+| `backgrounds.js` | background 161 | 600 KB |
+| `feats.js` | feat 284 | 301 KB |
+| `optionalfeatures.js` | optionalfeature 221 | 136 KB |
+| `items.js` | item 2449（含 `isBaseItem` 基礎物品、`isItemGroup` 物品組） | 2.06 MB |
+| `spells.js` | spell 965（含 `classes` 職業對照） | 1.38 MB |
+| `classes.js` | class 26、subclass 312、classFeature 654、subclassFeature 1416 | 1.88 MB |
+| `rules.js` | language、skill、condition、disease、status、variantrule、sense、action、itemProperty、itemMastery（給 tooltip 用） | 693 KB |
+
+合計約 7.4 MB。每筆條目都有 `id`、`kind`、`name`、`engName`、`source`、`page`、`edition`，必要時有 `reprintedAs`（id 陣列）、`tceOptional`。
+
+- 協力者（`class-sidekick.json`）不是玩家職業，不打包。
+- 刪掉的欄位見 `DROP_FIELDS`（fluff、翻譯者、SRD 標記、載具數值、foundry 等）。
+- `isClassFeatureVariant` 轉成 `tceOptional` 後刪除。
+
+## 11. 來源對照表
 
 由 `npm run source-table` 從 `books.json`／`adventures.json` 產生（下方區塊會被覆蓋，不要手改）。
 `official` 群組定義在 `src/data/sourceGroups.ts`；建置期白名單 = 所有群組的聯集。
@@ -290,9 +312,9 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 
 <!-- source-table:end -->
 
-## 11. 待決事項
+## 12. 待決事項
 
 （之後一起問使用者；目前先用預設值繼續。）
 
-1. **`official` 群組的確切範圍**：見 §10 的暫定選法與對照表「官方」欄。特別是：(a) 冒險模組要不要收？(b) `setting-alt`（Plane Shift 系列、Lorwyn: First Light）與 `supplement-alt`（Astarion's Book of Hungers 等）要不要收？(c) EEPC 不在上游書目表，要不要補？
+1. **`official` 群組的確切範圍**：見 §11 的暫定選法與對照表「官方」欄。特別是：(a) 冒險模組要不要收？(b) `setting-alt`（Plane Shift 系列、Lorwyn: First Light）與 `supplement-alt`（Astarion's Book of Hungers 等）要不要收？(c) EEPC 不在上游書目表，要不要補？
 2. **`public/data/*.js` 不進 git**：它們是從 `raw/` 產生的建置產物（數 MB），已加入 `.gitignore`；新環境要先跑 `npm run fetch-data && npm run build-data` 再 `npm run build`。日後做 GitHub Pages 自動部署時，CI 也要跑這兩步。
