@@ -524,3 +524,31 @@ Vue 3.4 起用一行巨集代替。
 
 點右側「已學會的法術」時，先改 `activeKey`（切換分頁），此時表格還沒重畫；`await nextTick()` 等 Vue 把畫面更新完，
 再用 `document.querySelector('[data-spell-row="…"]').scrollIntoView()`。id 含有 `|` 等特殊字元，所以用 `CSS.escape()` 包起來。
+
+## 13. M6 新出現的概念
+
+### 用字串模板產生整份 HTML（不用 Vue）
+
+審卡報告要能「離開網站單獨開啟」，所以不能是 Vue 元件畫出來的畫面，而是一份完整的 HTML 字串
+（`src/export/reviewHtml.ts`）。做法和後端模板引擎一樣：資料模型（`review.ts`）→ 字串拼接。
+因為不經過 Vue，**Vue 自動做的 HTML escape 這裡要自己做**：所有文字都包一層 `esc()`，
+否則角色名稱取成 `<script>…` 就會被當成程式碼。這也是為什麼測試特別用含 `<script>` 的角色名。
+
+### `<iframe srcdoc>`：在網站裡預覽另一份完整的 HTML
+
+`<iframe :srcdoc="html">` 把字串當成一份獨立的網頁顯示，樣式不會和網站互相干擾，
+看到的就是下載後的樣子。列印時呼叫 `iframe.contentWindow.print()`，只印 iframe 內的報告。
+拿到 iframe 元素的方式是**模板 ref**：`const frame = ref<HTMLIFrameElement>()` 配上 `<iframe ref="frame">`，
+Vue 掛載後會自動把 DOM 元素放進 `frame.value`。
+
+### `<script type="application/json">`：在 HTML 裡夾帶資料
+
+瀏覽器只執行 `type` 是 JavaScript 的 `<script>`；`application/json` 只是一塊不會執行的文字，
+用來把角色存檔夾帶在報告裡，網站的「匯入」讀到 HTML 檔時再用 id 找出來。JSON 裡的 `<` 先換成 `<`，
+避免內容出現 `</script>` 提早把區塊結束掉。
+
+### 列印專用 CSS：`@media print` 與 `@page`
+
+`@media print { … }` 裡的規則只在列印（含「另存為 PDF」）時生效，這裡用來把深色換成白底黑字；
+`@page { size: A4 portrait }` 指定紙張；`thead { display: table-header-group }` 讓表頭每頁重複，
+`tr { break-inside: avoid }` 讓一列不會被切在兩頁中間。

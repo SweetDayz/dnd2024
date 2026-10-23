@@ -361,9 +361,57 @@ async function sheetSmoke(page, problems) {
     const [again] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-xlsx').click()])
     if (!again.suggestedFilename().endsWith('.xlsx')) problems.push('第二次匯出 xlsx 沒有直接下載')
     if (await page.getByTestId('export-error').count()) problems.push(`xlsx 匯出錯誤：${await page.getByTestId('export-error').innerText()}`)
+
+    await reviewSmoke(page, problems, before, snapshot)
   } catch (err) {
     problems.push(`角卡流程失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }
+}
+
+/**
+ * M6：審卡報告 → 預覽（首次說明、不再顯示）→ 下載 HTML → 另開分頁以 file:// 開啟（零錯誤、不連網）
+ * → 輸出 PDF 供人工檢查 → 把報告 HTML 匯入回網站，角卡要完全相同。
+ * @param {import('playwright').Page} page
+ * @param {string[]} problems
+ * @param {string} before 匯入前的角卡文字
+ * @param {() => Promise<string>} snapshot
+ */
+async function reviewSmoke(page, problems, before, snapshot) {
+  await page.getByTestId('review-open').click()
+  await page.getByTestId('review-preview').waitFor({ timeout: 3000 })
+  if (!(await page.getByTestId('review-help').count())) problems.push('審卡報告：第一次使用沒有顯示說明')
+  const preview = await page.frameLocator('[data-testid="review-frame"]').locator('body').innerText()
+  if (!preview.includes('警示區') || !preview.includes('17／+9')) problems.push('審卡報告預覽缺少警示區或法術 DC 17')
+  const [rep] = await Promise.all([page.waitForEvent('download'), page.getByTestId('review-download').click()])
+  const name = rep.suggestedFilename()
+  if (!/^基準侏儒法師_Lv20_審卡_\d{4}-\d{2}-\d{2}\.html$/.test(name)) problems.push(`審卡報告檔名不符：${name}`)
+  const out = resolve('test-results', 'review.html')
+  await rep.saveAs(out)
+  await page.getByTestId('review-help-hide').click()
+  await page.getByTestId('review-close').click()
+  await page.getByTestId('review-open').click()
+  if (await page.getByTestId('review-help').count()) problems.push('審卡報告：按「不再顯示」後仍顯示說明')
+  await page.getByTestId('review-close').click()
+  if (await page.getByTestId('review-error').count()) problems.push(`審卡報告錯誤：${await page.getByTestId('review-error').innerText()}`)
+
+  // 下載的檔案單獨開啟：主控台零錯誤、不發任何網路請求（連 file:// 子資源都不該有）
+  const rp = await page.context().browser().newPage()
+  const own = []
+  rp.on('console', (m) => m.type() === 'error' && own.push(`console error: ${m.text()}`))
+  rp.on('pageerror', (e) => own.push(`pageerror: ${e.message}`))
+  rp.on('request', (r) => r.url() !== pathToFileURL(out).href && own.push(`請求：${r.url()}`))
+  await rp.goto(pathToFileURL(out).href, { waitUntil: 'load' })
+  const body = await rp.locator('body').innerText()
+  for (const t of ['警示區', '逐級選擇表', '效果清單', '17／+9', 'PHB24 p.']) if (!body.includes(t)) own.push(`缺少「${t}」`)
+  await rp.pdf({ path: resolve('test-results', 'review.pdf'), format: 'A4' })
+  await rp.close()
+  for (const p of own) problems.push(`下載的審卡報告：${p}`)
+
+  // 報告內嵌存檔 → 網站「匯入」可以直接吃 HTML
+  page.once('dialog', (d) => d.accept())
+  await page.getByTestId('import-file').setInputFiles(out)
+  await page.getByTestId('bar-message').getByText('已匯入').waitFor({ timeout: 3000 })
+  if ((await snapshot()) !== before) problems.push('匯入審卡報告 HTML 後，角卡畫面不同')
 }
 
 if (problems.length) {

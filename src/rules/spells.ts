@@ -334,11 +334,16 @@ export function spellRows(
   return rows.sort((a, b) => a.level - b.level || (a.spell.engName ?? '').localeCompare(b.spell.engName ?? ''))
 }
 
+/** 某個施法屬性的法術豁免 DC 與法術攻擊加值（職業以外的來源，例如專長、種族也用這個公式）。 */
+export function spellDcAttack(mod: number, pb: number) {
+  return { dc: 8 + pb + mod, attack: pb + mod }
+}
+
 /** 單一施法職業的法術 DC 與攻擊加值（角卡頂部顯示用）。 */
 export function spellcastingStats(castings: ClassCasting[], mods: Record<Ability, number>, pb: number) {
   return castings
     .filter((c) => c.ability)
-    .map((c) => ({ casting: c, ability: c.ability!, dc: 8 + pb + mods[c.ability!], attack: pb + mods[c.ability!], mod: mods[c.ability!] }))
+    .map((c) => ({ casting: c, ability: c.ability!, ...spellDcAttack(mods[c.ability!], pb), mod: mods[c.ability!] }))
 }
 
 

@@ -6,6 +6,7 @@
  */
 import type { Workbook } from 'exceljs'
 import type { ExcelJSLib } from './vendor'
+import { downloadBlob } from './download'
 import type { SheetTable } from './sheetData'
 
 /** 標題列樣式：粗體、深灰底（Google 試算表開啟後仍保留） */
@@ -35,17 +36,8 @@ export function buildWorkbook(ExcelJS: ExcelJSLib, tables: SheetTable[]): Workbo
   return wb
 }
 
-/** 產生 xlsx 並觸發下載（Blob ＋ <a download>，不發網路請求，file:// 可用） */
+/** 產生 xlsx 並觸發下載 */
 export async function downloadWorkbook(wb: Workbook, fileName: string): Promise<void> {
   const buf = await wb.xlsx.writeBuffer()
-  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = fileName
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  // 給瀏覽器一點時間開始下載再釋放
-  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  downloadBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName)
 }

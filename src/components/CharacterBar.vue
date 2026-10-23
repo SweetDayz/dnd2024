@@ -68,7 +68,7 @@ function remove() {
     <button type="button" data-testid="new-character" @click="store.create()">＋ 新角色</button>
     <button type="button" :disabled="!store.current" data-testid="export" @click="exportJson">匯出 JSON</button>
     <button type="button" data-testid="import" @click="fileInput?.click()">匯入 JSON</button>
-    <input ref="fileInput" type="file" accept=".json,application/json" hidden data-testid="import-file" @change="onFile" />
+    <input ref="fileInput" type="file" accept=".json,application/json,.html,text/html" hidden data-testid="import-file" @change="onFile" />
     <button type="button" class="danger" :disabled="!store.current" @click="remove">刪除</button>
     <span v-if="!store.storageOk" class="warn" title="瀏覽器不允許 localStorage，關閉頁面後資料會消失">⚠ 無法自動儲存，請記得匯出</span>
     <span v-if="message" class="msg" data-testid="bar-message">{{ message }}</span>

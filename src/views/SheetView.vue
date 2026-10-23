@@ -11,6 +11,7 @@ import EffectsTab from '@/components/sheet/EffectsTab.vue'
 import ExportButton from '@/components/sheet/ExportButton.vue'
 import FeaturesTab from '@/components/sheet/FeaturesTab.vue'
 import OverrideValue from '@/components/sheet/OverrideValue.vue'
+import ReviewReport from '@/components/sheet/ReviewReport.vue'
 import { SHEET_CONTEXT } from '@/components/sheet/context'
 import OriginChip from '@/components/builder/OriginChip.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
@@ -98,6 +99,7 @@ const PROF_LABEL = ['—', '熟練', '專精'] as const
         </div>
         <div class="head-actions">
           <button v-if="pending" type="button" class="pending" @click="emit('edit')">還有 {{ pending }} 項未選擇 →</button>
+          <ReviewReport />
           <ExportButton />
           <button type="button" class="edit" @click="emit('edit')">回到建角</button>
         </div>

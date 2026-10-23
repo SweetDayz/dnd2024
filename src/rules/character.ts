@@ -148,16 +148,28 @@ export function exportCharacter(c: Character): string {
 
 export class ImportError extends Error {}
 
+/** 審卡報告（HTML）嵌入存檔用的 `<script type="application/json">` 元素 id */
+export const EMBED_ID = 'dnd2024-character'
+
+/** 從審卡報告 HTML 取出嵌入的存檔 JSON；不是 HTML 就原樣回傳 */
+function unwrapHtml(text: string): string {
+  if (!/^\s*</.test(text)) return text
+  const m = new RegExp(String.raw`<script[^>]*\bid="${EMBED_ID}"[^>]*>([\s\S]*?)</script>`, 'i').exec(text)
+  if (!m) throw new ImportError('這個 HTML 檔裡沒有角色存檔（只有本站匯出的審卡報告可以匯入）')
+  return m[1]!
+}
+
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 
 /**
- * 匯入 JSON（可以是匯出檔，也可以是角色物件本身）。缺少的欄位補預設值，
+ * 匯入 JSON（可以是匯出檔、角色物件本身，或內嵌存檔的審卡報告 HTML）。缺少的欄位補預設值，
  * 版本較新（未知格式）就拒絕，避免默默弄壞資料。
  */
 export function importCharacter(json: string): Character {
+  const text = unwrapHtml(json)
   let raw: unknown
   try {
-    raw = JSON.parse(json)
+    raw = JSON.parse(text)
   } catch {
     throw new ImportError('不是有效的 JSON 檔')
   }

@@ -419,13 +419,22 @@ function aboutSheet({ meta, appVersion, exportedAt, filter, sources }: ExportInp
   }
 }
 
-/** 檔名：<角色名>_Lv<總等級>_<YYYY-MM-DD>.xlsx；不合法字元換成底線 */
-export function exportFileName(name: string, level: number, date: Date): string {
+/** 角色名 → 可當檔名的字串：Windows 不合法字元與控制字元換成底線，去掉結尾的點與空白 */
+export function safeFileName(name: string): string {
   const safe = [...(name.trim() || '未命名')]
     .map((ch) => (ch.charCodeAt(0) < 32 || '\\/:*?"<>|'.includes(ch) ? '_' : ch))
     .join('')
     .replace(/[. ]+$/, '')
+  return safe || '未命名'
+}
+
+/** 本地日期 YYYY-MM-DD */
+export function dateStamp(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
-  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-  return `${safe || '未命名'}_Lv${level}_${day}.xlsx`
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+/** 檔名：<角色名>_Lv<總等級>_<YYYY-MM-DD>.xlsx；不合法字元換成底線 */
+export function exportFileName(name: string, level: number, date: Date): string {
+  return `${safeFileName(name)}_Lv${level}_${dateStamp(date)}.xlsx`
 }
