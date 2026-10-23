@@ -9,6 +9,7 @@ import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'n
 import { resolve } from 'node:path'
 import { SOURCE_WHITELIST } from '../src/data/sourceGroups.ts'
 import { DATA_FILES } from '../src/data/types.ts'
+import { versionWarnings } from './lib/copy.ts'
 import { buildDataset, type RawInput } from './lib/pipeline.ts'
 import { readRaw, type Json } from './lib/raw.ts'
 import { buildSourceTable } from './lib/sources.ts'
@@ -89,4 +90,9 @@ for (const [kind, list] of Object.entries(dataset)) {
   const reprinted = list.filter((e) => e.reprintedAs).length
   const tce = list.filter((e) => e.tceOptional).length
   console.log(`  ${kind.padEnd(16)} ${String(list.length).padStart(5)}  (已被重印 ${reprinted}${tce ? `、TCE 可選 ${tce}` : ''})`)
+}
+
+if (versionWarnings.length) {
+  console.log(`_versions 展開警告（${versionWarnings.length}，見 docs/data-notes.md §3）：`)
+  for (const w of versionWarnings) console.log(`  ${w}`)
 }

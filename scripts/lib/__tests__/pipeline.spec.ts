@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SourceInfo } from '../../../src/data/types.ts'
-import { applyMod, resolveCopies } from '../copy.ts'
+import { applyMod, expandVersions, resolveCopies } from '../copy.ts'
 import { buildDataset, flattenMagicVariant } from '../pipeline.ts'
 
 const src = (source: string, edition: '2014' | '2024' = '2014'): SourceInfo => ({
@@ -300,5 +300,46 @@ describe('flattenMagicVariant', () => {
       bonusAc: '+2',
       entries: ['你在护甲等级上获得+2加值，该物品很重。'],
     })
+  })
+})
+
+describe('expandVersions', () => {
+  it('一般版本：母條目＋版本欄位，再套用 _mod', () => {
+    const vs = expandVersions({
+      name: '侏儒',
+      source: 'XPHB',
+      speed: 30,
+      entries: [{ name: '侏儒血系', entries: ['選一個'] }],
+      _versions: [
+        {
+          name: '侏儒；岩侏儒血系',
+          source: 'XPHB',
+          additionalSpells: [{ known: { 1: ['修复术|xphb#c'] } }],
+          _mod: { entries: { mode: 'replaceArr', replace: '侏儒血系', items: { name: '侏儒血系 (岩侏儒)', entries: ['x'] } } },
+        },
+      ],
+    })
+    expect(vs).toHaveLength(1)
+    expect(vs[0]).toMatchObject({ name: '侏儒；岩侏儒血系', speed: 30, entries: [{ name: '侏儒血系 (岩侏儒)' }] })
+    expect(vs[0]._versions).toBeUndefined()
+  })
+
+  it('模板版本：_abstract 代入每個 _implementations 的變數', () => {
+    const vs = expandVersions({
+      name: '龙裔',
+      source: 'XPHB',
+      entries: [{ name: '伤害抗性', entries: [] }],
+      _versions: [
+        {
+          _abstract: {
+            name: '龙裔 ({{color}})',
+            source: 'XPHB',
+            _mod: { entries: { mode: 'replaceArr', replace: '伤害抗性', items: { name: '伤害抗性', entries: ['{{damageType}}'] } } },
+          },
+          _implementations: [{ _variables: { color: '黑', damageType: '强酸' }, resist: ['强酸'] }],
+        },
+      ],
+    })
+    expect(vs[0]).toMatchObject({ name: '龙裔 (黑)', resist: ['强酸'], entries: [{ entries: ['强酸'] }] })
   })
 })

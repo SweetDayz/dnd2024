@@ -39,6 +39,10 @@ export interface Entry {
   reprintedAs?: string[]
   /** 屬於 TCE 可選規則（可選職業特性、定制血統等），預設隱藏 */
   tceOptional?: boolean
+  /** 同一條目的幾種版本（例如侏儒的血系、魔法學徒的法術列表），由 `_versions` 展開，每個都是完整條目 */
+  versions?: Entry[]
+  /** 版本條目：母條目的 id */
+  versionOf?: string
   entries?: unknown[]
   [field: string]: unknown
 }

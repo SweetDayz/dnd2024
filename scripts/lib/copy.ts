@@ -55,7 +55,7 @@ function replaceText(value: Json, re: RegExp, withText: string): Json {
 }
 
 /** 對單一欄位套用一個 `_mod` 操作。未知的 mode 會丟例外，讓建置失敗而不是默默出錯。 */
-export function applyMod(value: Json, mod: Json): Json {
+export function applyMod(value: Json, mod: Json, lenient = false): Json {
   const items = mod.items === undefined ? [] : [].concat(clone(mod.items))
   const arr: Json[] = Array.isArray(value) ? [...value] : value === undefined ? [] : [value]
   switch (mod.mode) {
@@ -70,12 +70,19 @@ export function applyMod(value: Json, mod: Json): Json {
       return arr
     case 'replaceArr': {
       const i = arr.findIndex((it, idx) => matches(it, mod.replace, idx))
+      if (i < 0 && lenient) {
+        versionWarnings.push(`replaceArr 找不到「${JSON.stringify(mod.replace)}」，改為附加在最後`)
+        return [...arr, ...items]
+      }
       if (i < 0) throw new Error(`replaceArr 找不到要取代的項目：${JSON.stringify(mod.replace)}`)
       arr.splice(i, 1, ...items)
       return arr
     }
     case 'removeArr': {
       const names: Json[] = [].concat(mod.names ?? mod.items)
+      if (lenient && !arr.some((it, idx) => names.some((n) => matches(it, n, idx)))) {
+        versionWarnings.push(`removeArr 找不到「${JSON.stringify(names)}」`)
+      }
       return arr.filter((it, idx) => !names.some((n) => matches(it, n, idx)))
     }
     case 'replaceTxt':
@@ -85,7 +92,7 @@ export function applyMod(value: Json, mod: Json): Json {
   }
 }
 
-export function applyMods(entry: Json, mods: Json): void {
+export function applyMods(entry: Json, mods: Json, lenient = false): void {
   for (const [path, ops] of Object.entries(mods ?? {})) {
     // 欄位可以是點路徑，例如 magicvariants 的 "inherits.entries"
     const keys = path.split('.')
@@ -99,7 +106,7 @@ export function applyMods(entry: Json, mods: Json): void {
       if (op === 'remove') delete target[field]
       else if (typeof op === 'string') throw new Error(`未支援的 _mod 簡寫：${op}`)
       else if (op.mode === 'setProp') target[field] = clone(op.value)
-      else target[field] = applyMod(target[field], op)
+      else target[field] = applyMod(target[field], op, lenient)
     }
   }
 }
@@ -143,4 +150,52 @@ export function resolveCopies(
   }
 
   return entries.map((e) => resolve(e, new Set()))
+}
+
+/**
+ * 展開 _versions 時遇到的資料問題（上游翻譯時改了小標題名稱，導致 replaceArr 對不上）。
+ * 版本只是「多一種選法」，不該讓整個建置失敗，所以寬鬆處理並收集警告，由 build-data 印出。
+ */
+export const versionWarnings: string[] = []
+
+/** 把 `{{變數}}` 代入字串（_versions 的 _abstract 模板用）。 */
+function fillVariables(value: Json, vars: Record<string, string>): Json {
+  if (typeof value === 'string') return value.replace(/\{\{(\w+)\}\}/g, (m, k: string) => vars[k] ?? m)
+  if (Array.isArray(value)) return value.map((v) => fillVariables(v, vars))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fillVariables(v, vars)]))
+  }
+  return value
+}
+
+/**
+ * 展開 `_versions`（同一條目的幾種「版本」，例如侏儒的森林／岩侏儒血系、魔法學徒的牧師／法師版）。
+ *
+ * 兩種寫法：
+ *   - 一般：`{ name, source, _mod, ...覆蓋欄位 }`
+ *   - 模板：`{ _abstract: {name: "龍裔 ({{color}})", _mod}, _implementations: [{ _variables: {color: "黑"}, resist: [...] }] }`
+ *
+ * 每個版本 = 母條目（不含 _versions）＋版本自己的欄位，再套用 _mod。回傳完整的條目物件。
+ */
+export function expandVersions(entry: Json): Json[] {
+  const { _versions, ...base } = entry
+  if (!Array.isArray(_versions)) return []
+  const out: Json[] = []
+  const one = (spec: Json) => {
+    const { _mod, ...own } = spec
+    const merged: Json = { ...clone(base), ...clone(own) }
+    const before = versionWarnings.length
+    applyMods(merged, _mod, true)
+    for (let i = before; i < versionWarnings.length; i++) versionWarnings[i] = `${merged.name}（${merged.source}）：${versionWarnings[i]}`
+    out.push(merged)
+  }
+  for (const v of _versions) {
+    if (v._abstract) {
+      for (const impl of v._implementations ?? []) {
+        const { _variables = {}, ...own } = impl
+        one({ ...fillVariables(clone(v._abstract), _variables), ...own })
+      }
+    } else one(v)
+  }
+  return out
 }

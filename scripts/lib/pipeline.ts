@@ -9,7 +9,7 @@
 //   6. 刪掉建角用不到的欄位
 import { makeId, type EntryKind } from '../../src/data/ids.ts'
 import type { Edition, Entry, SourceInfo, SpellClassRef } from '../../src/data/types.ts'
-import { resolveCopies } from './copy.ts'
+import { expandVersions, resolveCopies } from './copy.ts'
 import type { Json } from './raw.ts'
 
 export type RawInput = Partial<Record<EntryKind | 'baseitem' | 'itemGroup' | 'magicvariant', Json[]>> & {
@@ -154,6 +154,11 @@ export function buildDataset(raw: RawInput, opts: BuildOptions): Dataset {
       if (n.page === undefined && n.engName) {
         const page = opts.pagePatches?.[patchKey(kind, n.engName, n.source, e.level)]
         if (page !== undefined) n.page = page
+      }
+      // _versions → versions：每個版本都是完整條目（有自己的 id），並記住母條目 versionOf
+      if (e._versions) {
+        delete n._versions
+        n.versions = expandVersions(e).map((v) => ({ ...normalize(kind, v, canon, canonical), versionOf: n.id }))
       }
       return n
     })

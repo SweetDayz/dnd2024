@@ -314,3 +314,79 @@ src/components/browser/        OptionBrowser（分頁、搜尋、篩選）、Ent
 
 注意：被建置腳本（Node 直接執行 .ts）用到的 `src/data/*.ts`，彼此 import 要寫副檔名 `./ids.ts`，
 而且只能用「型別可直接擦掉」的 TS 語法（不能用 `enum`、`namespace`），因為 Node 只做 type stripping、不做轉譯。
+
+---
+
+## 9. M2 新出現的概念
+
+### 規則引擎與畫面怎麼分工
+
+```
+角色存檔（只有選擇）  ──►  src/rules/build.ts  ──►  Build（擁有什麼 + 還要選什麼）
+                                                    │
+基礎屬性值  ─────────────────────────────────────►  src/rules/derive.ts  ──►  Sheet（數字）
+```
+
+- `src/rules/` 全是純 TypeScript 函式，不 import Vue，所以可以直接用 Vitest 拿真實資料測（`src/rules/__tests__/benchmark.ts` 用程式把基準角色建出來，再檢查 HP、豁免、技能）。
+- 規則引擎讀資料只透過 `RulesData` 介面（`get`、`list`、`visible`）。app 裡由 `src/composables/useRulesData.ts` 把 catalog store 與 sourceFilter store 包成這個介面；測試裡由 `realData()` 直接讀 `public/data/*.js`。這就是「依賴反轉」：引擎不用知道資料從哪來。
+- 「選擇欄位」（ChoiceSlot）是核心概念：引擎走過職業、背景、種族、專長時，遇到需要玩家選的東西就產生一個欄位，key 是穩定字串（例如 `class|法师|XPHB:skill:0`），玩家的選擇存在 `character.choices[key]`。畫面只需要一個通用元件 `ChoiceSlotView.vue` 就能顯示所有種類的選擇。
+
+### composable（`useXxx` 函式）
+
+[src/composables/useCharacterBuild.ts](../../src/composables/useCharacterBuild.ts) 這種以 `use` 開頭、在 `<script setup>` 裡呼叫的函式叫 composable。它把「多個元件都需要的響應式邏輯」抽出來：
+
+```ts
+const { store, build, sheet } = useCharacterBuild()
+// build、sheet 是 computed：角色任何選擇改變，Vue 自動重算；元件只要讀 build.value
+```
+
+跟 Pinia store 的差別：store 是全域單一份「狀態」；composable 是「邏輯」，每次呼叫都可以產生新的 computed（這裡的 computed 依賴 store，所以結果一樣）。
+
+### Pinia store 的自動存檔：`watch(..., { deep: true })`
+
+[src/stores/character.ts](../../src/stores/character.ts) 用 `watch(characters, save, { deep: true })`：角色物件裡任何一層（例如 `choices[key]`）改了都會觸發存檔。`deep` 對大物件很貴，但角色存檔只有幾 KB，沒問題；資料檔（7 MB）就絕對不能這樣做（那邊用 `markRaw`）。
+
+### `:value` + `@change` vs `v-model`
+
+綁到 store 的表單欄位，本專案多用 `:value="..." @change="store.update(...)"` 而不是 `v-model`：所有修改都經過 `store.update()`，才能統一更新 `updatedAt`。`v-model` 本質上就是 `:value` + `@input` 的簡寫。
+
+### 具名插槽帶參數（scoped slot）
+
+[EntryPicker.vue](../../src/components/builder/EntryPicker.vue) 在右側說明區留了一個插槽，並把目前預覽的條目傳出去：
+
+```vue
+<!-- EntryPicker.vue 內 -->
+<slot name="detail" :entry="preview" />
+
+<!-- 使用端（StepClass.vue）：拿到 entry，自己決定要多顯示什麼 -->
+<EntryPicker :entries="classes">
+  <template #detail="{ entry }">生命骰：d{{ entry.hd.faces }}</template>
+</EntryPicker>
+```
+
+### 有型別的事件：`defineEmits<{ goto: [step: string] }>()`
+
+子元件宣告它會發出哪些事件、帶什麼參數；父元件用 `@goto="..."` 接。TypeScript 會檢查參數型別。
+
+### file:// 下的檔案下載與讀取
+
+- 匯出：`new Blob([json])` → `URL.createObjectURL()` → 建一個 `<a download>` 並 `click()`。`blob:` 網址是瀏覽器記憶體內的資料，不是網路請求，所以 file:// 下也能用。
+- 匯入：`<input type="file">` 讓使用者選檔，`await file.text()` 讀內容。同樣不經過網路。
+
+### M2 之後的檔案地圖（新增部分）
+
+```
+src/rules/abilities.ts      六屬性、調整值、熟練加值、點數購買、4d6
+src/rules/dice.ts           擲骰（亂數可注入，測試用固定序列）
+src/rules/character.ts      角色存檔格式（只存選擇）、匯出匯入、schemaVersion
+src/rules/data.ts           RulesData 介面、技能／工具／語言的鍵與中文標籤
+src/rules/build.ts          選擇欄位與獲得（熟練、屬性加值、專長、法術、特性）
+src/rules/derive.ts         數值：屬性、豁免、技能、先攻、被動感知、HP、速度、感官
+src/rules/effects.ts        效果自動偵測（關鍵字與標籤）
+src/composables/            useRulesData、useCharacterBuild
+src/stores/character.ts     角色清單、目前角色、localStorage、匯出匯入
+src/components/builder/     ChoiceSlotView（通用選擇欄位）、EntryPicker、OriginChip
+src/components/CharacterBar.vue  角色工具列
+src/views/BuilderView.vue   建角精靈；src/views/builder/ 各步驟
+src/views/SheetView.vue     角卡
+```

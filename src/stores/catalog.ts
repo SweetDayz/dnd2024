@@ -40,6 +40,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     for (const list of Object.values(data)) {
       for (const e of list ?? []) {
         index.set(e.id.toLowerCase(), e)
+        // 版本也可以直接用 id 查到（背景的起源專長會直接參照「魔法学徒；牧师|xphb」）
+        for (const v of e.versions ?? []) index.set(v.id.toLowerCase(), v)
         // {@subclass} 標籤用短名參照：subclass|短名|來源|職業|職業來源
         if (e.kind === 'subclass' && e.shortName && e.shortName !== e.name) {
           index.set(indexKey('subclass', String(e.shortName), e.source, String(e.className), String(e.classSource)), e)

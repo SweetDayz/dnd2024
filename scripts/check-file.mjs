@@ -45,6 +45,7 @@ try {
       problems.push(`畫面上找不到「${text}」`)
     }
   }
+  await builderSmoke(page, problems)
   await interactionSmoke(page, problems)
   // 讓延遲載入的資料檔有機會報錯
   await page.waitForTimeout(300)
@@ -64,6 +65,7 @@ async function interactionSmoke(page, problems) {
   }
   const waitCount = () => page.getByTestId('count').getByText('目前書目下共').waitFor({ timeout: 10000 })
   try {
+    await page.click('[data-view="browser"]')
     for (const tab of ['race', 'background', 'class', 'feat', 'spell', 'item', 'optionalfeature']) {
       await page.click(`[data-tab="${tab}"]`)
       await waitCount()
@@ -100,6 +102,63 @@ async function interactionSmoke(page, problems) {
     await page.locator('input[data-source="XPHB"]').check()
   } catch (err) {
     problems.push(`互動測試失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
+  }
+}
+
+/**
+ * 建角精靈 smoke test：用介面從零建立 1 級基準角色（岩地侏儒、侍僧、法師），檢查 HP 與「全部選完」。
+ * @param {import('playwright').Page} page
+ * @param {string[]} problems
+ */
+async function builderSmoke(page, problems) {
+  const slot = (key) => page.locator(`[data-slot="${key}"]`)
+  const pickEntry = async (step, search, id) => {
+    await page.click(`[data-step="${step}"]`)
+    await page.getByTestId('picker-search').fill(search)
+    await page.click(`[data-id="${id}"]`)
+  }
+  const chip = (key, value) => slot(key).locator(`[data-value="${value}"]`).first().click()
+  try {
+    await pickEntry('class', 'Wizard', 'class|法师|XPHB')
+    await chip('class|法师|XPHB:skill:0', 'arcana')
+    await chip('class|法师|XPHB:skill:0', 'investigation')
+
+    await pickEntry('background', 'Acolyte', 'background|侍僧|XPHB')
+    await pickEntry('race', 'Gnome', 'race|侏儒|XPHB')
+    await chip('race|侏儒|XPHB:version', 'race|侏儒；岩侏儒血系|XPHB')
+    await chip('race|侏儒|XPHB:spells:ability', 'int')
+
+    await page.click('[data-step="abilities"]')
+    const scores = { str: '8', dex: '12', con: '14', int: '15', wis: '13', cha: '10' }
+    for (const [a, v] of Object.entries(scores)) await page.locator(`tr[data-ability="${a}"] select`).selectOption(v)
+    await chip('background|侍僧|XPHB:ability:alt', '0')
+    const weighted = slot('background|侍僧|XPHB:ability:w').locator('select')
+    await weighted.nth(0).selectOption('wis')
+    await weighted.nth(1).selectOption('int')
+
+    await page.click('[data-step="languages"]')
+    await chip('base:languages', 'dwarvish')
+    await chip('base:languages', 'gnomish')
+
+    // 魔法學徒（牧師）的法術：在確認頁的「尚未完成」清單裡選
+    await page.click('[data-step="confirm"]')
+    const mi = 'background|侍僧|XPHB:feat>feat|魔法学徒；牧师|XPHB:spells'
+    await chip(`${mi}:ability`, 'wis')
+    await chip(`${mi}:0`, 'spell|神导术|XPHB')
+    await chip(`${mi}:0`, 'spell|修复术|XPHB')
+    await chip(`${mi}:1`, 'spell|光导箭|XPHB')
+    await page.getByTestId('char-name').fill('基準侏儒法師')
+
+    const hp = await page.getByTestId('hp-max').innerText()
+    if (hp.trim() !== '8') problems.push(`建角：1 級 HP 應為 8，畫面為 ${hp}`)
+    try {
+      await page.getByText('所有選擇都已完成').waitFor({ timeout: 3000 })
+    } catch {
+      const left = await page.getByTestId('choice-slot').allInnerTexts()
+      problems.push(`建角：還有未完成的選擇：${left.map((t) => t.split('\n')[0]).join('；')}`)
+    }
+  } catch (err) {
+    problems.push(`建角流程失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }
 }
 
