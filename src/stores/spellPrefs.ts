@@ -9,8 +9,9 @@
  * 預設的「來源＝啟用的書目」會自動跟著變。
  */
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { DEFAULT_SORT, type SpellFilterState, type SpellSort } from '@/data/spellFilter'
+import { loadPrefs, persistPrefs } from './prefsStorage'
 
 export const SPELL_PREFS_KEY = 'dnd2024.spellPrefs'
 
@@ -22,19 +23,10 @@ export interface SlotPrefs {
   panelOpen: boolean
 }
 
-function load(): Record<string, SlotPrefs> {
-  try {
-    const raw = localStorage.getItem(SPELL_PREFS_KEY)
-    return raw ? (JSON.parse(raw) as Record<string, SlotPrefs>) : {}
-  } catch {
-    return {}
-  }
-}
-
 const fresh = (): SlotPrefs => ({ sort: { ...DEFAULT_SORT }, showBlocked: false, panelOpen: false })
 
 export const useSpellPrefsStore = defineStore('spellPrefs', () => {
-  const bySlot = ref<Record<string, SlotPrefs>>(load())
+  const bySlot = ref<Record<string, SlotPrefs>>(loadPrefs<SlotPrefs>(SPELL_PREFS_KEY))
 
   /** 某欄位的偏好（沒存過就回傳預設值；不會在讀取時寫入，所以可以放心在 computed 裡用）。 */
   function get(slotKey: string): SlotPrefs {
@@ -51,17 +43,7 @@ export const useSpellPrefsStore = defineStore('spellPrefs', () => {
     bySlot.value[slotKey] = { ...fresh(), panelOpen: get(slotKey).panelOpen }
   }
 
-  watch(
-    bySlot,
-    (v) => {
-      try {
-        localStorage.setItem(SPELL_PREFS_KEY, JSON.stringify(v))
-      } catch {
-        // 存不了就算了：只是畫面偏好
-      }
-    },
-    { deep: true },
-  )
+  persistPrefs(SPELL_PREFS_KEY, bySlot)
 
   return { bySlot, get, update, reset }
 })

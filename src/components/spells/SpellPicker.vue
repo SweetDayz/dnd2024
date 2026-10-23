@@ -10,6 +10,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import {
+  SPELL_GROUPS,
   SPELL_GROUP_IDS,
   availableTags,
   defaultFilterState,
@@ -31,7 +32,7 @@ import LegacyHint from '../LegacyHint.vue'
 import OriginChip from '../builder/OriginChip.vue'
 import KnownSpells from './KnownSpells.vue'
 import SpellDetail from './SpellDetail.vue'
-import SpellFilterPanel from './SpellFilterPanel.vue'
+import FacetFilterPanel from '../filter/FacetFilterPanel.vue'
 import SpellPickTable, { type PickRow } from './SpellPickTable.vue'
 
 const { data, build, sheet, spells, mods } = useCharacterBuild()
@@ -271,8 +272,10 @@ function selectTab(key: string) {
           <LegacyHint v-model="revealLegacy" :hidden="legacyHidden" />
           <span class="muted count" data-testid="spell-count">{{ shown.length }} 道</span>
         </div>
-        <SpellFilterPanel
+        <FacetFilterPanel
           v-if="slotPrefs?.panelOpen"
+          data-testid="spell-filter-panel"
+          :groups="SPELL_GROUPS"
           :state="stored"
           :tags="tags"
           :label="label"

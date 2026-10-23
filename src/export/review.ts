@@ -30,7 +30,7 @@ export interface Item {
   note?: string
 }
 
-export type WarningKind = '手動覆寫' | '未完成的選擇' | '失效的選擇' | '超過載重' | 'TCE 可選規則' | '重印舊版' | '2014 相容規則' | '屬性值'
+export type WarningKind = '手動覆寫' | '未完成的選擇' | '失效的選擇' | '超過載重' | '稀有語言' | 'TCE 可選規則' | '重印舊版' | '2014 相容規則' | '屬性值'
 
 export interface ReviewWarning {
   kind: WarningKind
@@ -189,6 +189,14 @@ export function buildReviewModel(x: ExportInput): ReviewModel {
       text: `${originText(slot.origin)}・${plain(slot.label)}：存檔中的「${slot.stale.join('、')}」目前不是合法選項，已視為未選擇`,
       src: originBadge(slot.origin),
     })
+  }
+  // 一般語言選擇裡選了稀有（或其他）語言：2024 規則要 DM 同意
+  for (const slot of b.slots) {
+    if (slot.type !== 'language' || !slot.restrictedToggle) continue
+    for (const v of slot.selected) {
+      const o = slot.options.find((x) => x.value === v)
+      if (o?.restricted) warn({ kind: '稀有語言', text: `${plain(o.label)}（${o.group ?? '稀有'}）：一般語言選擇預設只能選標準語言，需 DM 同意`, src: badge(o.entry) })
+    }
   }
   const tce = (e: Entry | undefined, where: string) => {
     if (e?.tceOptional) warn({ kind: 'TCE 可選規則', text: `${nameWithEng(e)}（${where}）`, src: badge(e) })

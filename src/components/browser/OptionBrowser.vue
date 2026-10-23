@@ -5,11 +5,14 @@ import { computed, ref, watch } from 'vue'
 import type { EntryKind } from '@/data/ids'
 import { entryMatches, sourceAbbr } from '@/data/sourceDisplay'
 import { schoolName, spellLevelText } from '@/data/summary'
-import { LANGUAGE_TYPE_LABEL, LANGUAGE_TYPES, languageType } from '@/rules/data'
+import { languageDefaults } from '@/data/languageTable'
+import { useRulesData } from '@/composables/useRulesData'
+import { languageRows } from '@/rules/data'
 import type { DataFileName, Entry, SpellClassRef } from '@/data/types'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
 import LegacyHint from '../LegacyHint.vue'
+import LanguageTable from '../languages/LanguageTable.vue'
 import ClassDetail from './ClassDetail.vue'
 import EntryRow from './EntryRow.vue'
 
@@ -41,7 +44,6 @@ const limit = ref(PAGE)
 const spellLevel = ref<string>('')
 const spellSchool = ref<string>('')
 const spellClass = ref<string>('')
-const langType = ref<string>('')
 /** 這個分頁暫時顯示重印舊版（換分頁就恢復） */
 const revealLegacy = ref(false)
 watch(tabId, () => (revealLegacy.value = false))
@@ -53,7 +55,7 @@ watch(
   },
   { immediate: true },
 )
-watch([tabId, query, spellLevel, spellSchool, spellClass, langType, revealLegacy, () => filter.state], () => (limit.value = PAGE))
+watch([tabId, query, spellLevel, spellSchool, spellClass, revealLegacy, () => filter.state], () => (limit.value = PAGE))
 
 const loaded = computed(() => tab.value.files.every((f) => catalog.isLoaded(f)))
 
@@ -94,16 +96,19 @@ const results = computed(() => {
     if (spellSchool.value) list = list.filter((e) => e.school === spellSchool.value)
     if (spellClass.value) list = list.filter((e) => spellHasClass(e, spellClass.value))
   }
-  if (tabId.value === 'language' && langType.value) list = list.filter((e) => languageType(e) === langType.value)
   return [...list].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN') || a.source.localeCompare(b.source))
 })
 
 const filtered = computed(
   () =>
     !!query.value.trim() ||
-    (tabId.value === 'spell' && !!(spellLevel.value || spellSchool.value || spellClass.value)) ||
-    (tabId.value === 'language' && !!langType.value),
+    (tabId.value === 'spell' && !!(spellLevel.value || spellSchool.value || spellClass.value)),
 )
+
+// 語言分頁（M7-6）：改用可排序表格＋三態篩選；同名語言合併成一列（languageRows）
+const rules = useRulesData()
+const langRows = computed(() => languageRows(rules.data.value).filter((r) => filter.visible(r.entry)))
+const langDefaults = computed(() => languageDefaults(filter.enabled))
 
 function subracesOf(race: Entry): Entry[] {
   return catalog
@@ -129,7 +134,7 @@ function subracesOf(race: Entry): Entry[] {
       </button>
     </nav>
 
-    <div class="toolbar">
+    <div v-if="tabId !== 'language'" class="toolbar">
       <input v-model="query" type="search" placeholder="搜尋中文或英文名，或來源（PHB24／XPHB）…" data-testid="search" />
       <template v-if="tabId === 'spell'">
         <select v-model="spellLevel" data-testid="spell-level">
@@ -145,10 +150,6 @@ function subracesOf(race: Entry): Entry[] {
           <option v-for="c in classOptions" :key="c.key" :value="c.key">{{ c.label }}</option>
         </select>
       </template>
-      <select v-if="tabId === 'language'" v-model="langType" data-testid="language-type">
-        <option value="">全部分類</option>
-        <option v-for="t in LANGUAGE_TYPES" :key="t" :value="t">{{ LANGUAGE_TYPE_LABEL[t] }}</option>
-      </select>
     </div>
 
     <p class="count" data-testid="count">
@@ -159,7 +160,8 @@ function subracesOf(race: Entry): Entry[] {
       <LegacyHint v-if="loaded" v-model="revealLegacy" :hidden="split.hidden" />
     </p>
 
-    <ul class="list">
+    <LanguageTable v-if="tabId === 'language' && loaded" table-id="browser:language" :rows="langRows" :defaults="langDefaults" />
+    <ul v-else class="list">
       <EntryRow v-for="e in results.slice(0, limit)" :key="e.id" :entry="e" @jump="jump">
         <ClassDetail v-if="e.kind === 'class'" :cls="e" />
         <template v-if="e.kind === 'race' && subracesOf(e).length">
@@ -170,7 +172,7 @@ function subracesOf(race: Entry): Entry[] {
         </template>
       </EntryRow>
     </ul>
-    <button v-if="results.length > limit" type="button" class="more" @click="limit += PAGE">
+    <button v-if="tabId !== 'language' && results.length > limit" type="button" class="more" @click="limit += PAGE">
       再顯示 {{ Math.min(PAGE, results.length - limit) }} 項（還有 {{ results.length - limit }} 項）
     </button>
   </section>

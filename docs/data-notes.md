@@ -675,3 +675,41 @@ DDB 的屬性值提升、傳奇恩惠、法術精通、招牌法術、學者都�
 - 物品頁：重量明細（物品／錢幣／總重）、負重條（以拖拽上限為滿格，載重處有刻度）、超重時紅框加上原文兩段與來源徽章。
 - 角卡速度：超重時步行速度至多 5 呎，旁邊 ⚠ 圖示（tooltip 寫原因）；`Sheet.speedNotes` 也收重甲力量不足 −10 的原因。飛行、游泳等其他速度原文沒規定，不改。
 - 審卡報告警示區：新增「超過載重」。
+
+## 20. M7-6：語言資料、分類與合併
+
+### 20a. 欄位（`data/rules.js` 的 `language`，160 筆）
+
+| 欄位 | 筆數 | 說明 |
+| --- | --- | --- |
+| `type` | 86 | `standard` 57、`exotic` 16（2014）、`rare` 9（2024）、`secret` 4；74 筆沒有（多半是 MM／XMM 的怪物語言） |
+| `script` | 77 | 文字（中文，例如「矮人语」）；有 `none`。**XPHB 的語言都沒有這欄**（2024 PHB 拿掉了文字欄） |
+| `typicalSpeakers` | 121 | 陣列，內含 `{@creature}`、`{@filter}` 標籤 |
+| `origin` | 36 | XPHB 用這欄代替典型使用者（例如矮人语 → 「矮人」） |
+| `entries` | 37 | 說明文字 |
+| `dialects`、`fonts` | 3、1 | 不用 |
+
+### 20b. 重複條目（同一個英文名）
+
+46 個英文名有多筆，差異如下：
+
+- **類型不一致**：天界语 ERLW `exotic`、GGR `standard`、XPHB `rare`；龙语 PHB `exotic`、XPHB `standard`；兽人语 ERLW `exotic`、XPHB `standard`。
+- **秘密語言**：德鲁伊语、盗贼黑话在 PHB／GGR 標 `secret`，**XPHB 標 `rare`**（2024 PHB 把它們列在稀有語言表，但只能由職業特性給予）。
+- **文字不一致**：巨人语 ERLW「巨人语」、GGR／MOT「牛头人语」、PHB「矮人语」；地精语 ERLW「地精语」、GGR「通用语」、PHB「矮人语」。
+- 其餘多為 MM→XMM、SCAG→FRHoF 的重印，內容相同。
+- 任務檔提到的 DSotDQ 矮人語：目前打包的資料（官方群組白名單）沒有 DSotDQ 的語言條目。
+
+### 20c. 決定（預設）
+
+- **合併**：以存檔 key（英文名小寫，`languageKey`）分組，一列＝一種語言；代表條目沿用 `languageList` 的規則（XPHB 優先）。**存檔 key 不變**，所以不必升級存檔、也不用停下來問。
+- 來源欄列出目前書目下所有可見版本的徽章；詳情展開各版本的類型、文字與說明。
+- 類型：代表條目的 type（沒有就取第一個有 type 的版本）；`exotic` 與 `rare` 同一組「稀有」；**任一版本標 `secret` 就是「秘密」**（不限目前書目），所以 XPHB 的德魯伊語、盜賊黑話也算秘密語言。
+- 文字：代表條目沒有時取其他版本的第一個（因此 XPHB 矮人语顯示 ERLW／PHB 的「矮人语」）。
+- 建角的「標準語言（選 2）」：秘密語言不列出；稀有與其他預設隱藏，打開開關才列，名稱旁標「稀有語言（需 DM 同意）」，選了會在審卡報告警示區出現「稀有語言」。種族、背景、特性明確給予或允許任選的語言（`anyStandard`、`any`…）照原有邏輯。
+
+### 20d. 通用模組（M7-6 抽出）
+
+- `src/data/facetFilter.ts`：三態標籤、AND／OR、全選／清除、`collectTags`、`sortRows`／`compareValues`（數字依大小、undefined 排最後）。`spellFilter.ts` 改為建立在它之上（re-export，舊的 import 不變）。
+- `src/components/filter/FacetFilterPanel.vue`（原 `SpellFilterPanel.vue`，改為 generic 元件，預設 slot 可放範圍篩選）。
+- `src/components/table/SortableTable.vue`（`SpellPickTable` 改用它）。
+- `src/stores/prefsStorage.ts`（localStorage 讀寫）＋ `src/stores/tablePrefs.ts`（語言、物品表格的偏好；spellPrefs 也改用 prefsStorage）。

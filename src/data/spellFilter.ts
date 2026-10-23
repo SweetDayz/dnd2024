@@ -1,18 +1,23 @@
 /**
  * 法術篩選（M5-2）：仿上游 5etools 法術頁的篩選面板。純函式，不依賴 Vue。
  *
- * 每個「群組」（來源、環階、職業…）有一組「標籤」，每個標籤是三態：
- *   包含（1，藍）、排除（-1，紅）、不篩選（沒有記錄）。
- * 群組內：
- *   - 有任何「包含」時，OR 模式要符合其中一個、AND 模式要全部符合；
- *   - 任何「排除」的標籤只要符合一個就淘汰（兩種模式都一樣）。
- * 群組之間一律是 AND。
+ * 三態標籤、AND／OR、全選／清除、排序的通用部分在 facetFilter.ts（M7-6 抽出，語言、物品也用）；
+ * 這裡只定義法術的群組、標籤名稱與 facets。
  *
  * 篩選只在「候選範圍」內縮小：候選範圍由選擇欄位決定（例如法術書＝法師清單＋可學環階），見 M5-3。
  * 每道法術的標籤值（facets）由建置期的扁平索引 `idx`、`origins`（scripts/lib/spellIndex.ts）
  * 加上執行期才知道的東西（啟用的書、TCE 開關、是否被重印取代）組成。
  */
 import { ABILITY_NAME, isAbility } from '../rules/abilities.ts'
+import {
+  collectTags,
+  compareValues,
+  matchAll,
+  sourceDefault,
+  type FilterState,
+  type GroupState,
+  type SortState,
+} from './facetFilter.ts'
 import type { Entry, SpellClassRef, SpellIndex, SpellOrigins } from './types.ts'
 import { entryMatches, sourceAbbr } from './sourceDisplay.ts'
 import { schoolName } from './summary.ts'
@@ -65,13 +70,20 @@ export const SPELL_GROUP_LABEL: Record<SpellGroupId, string> = {
   creature: '影響的生物類型',
 }
 
-export type TagState = 1 | -1
-export interface GroupState {
-  /** 標籤 → 包含（1）／排除（-1）；不在表內＝不篩選 */
-  tags: Record<string, TagState>
-  mode: 'and' | 'or'
-}
-export type SpellFilterState = Partial<Record<SpellGroupId, GroupState>>
+/** 篩選面板用的群組清單（依顯示順序） */
+export const SPELL_GROUPS = SPELL_GROUP_IDS.map((id) => ({ id, label: SPELL_GROUP_LABEL[id] }))
+
+export {
+  activeCount,
+  clearGroup,
+  cycleTag,
+  matchGroup,
+  selectAll,
+  toggleMode,
+  type GroupState,
+  type TagState,
+} from './facetFilter.ts'
+export type SpellFilterState = FilterState<SpellGroupId>
 
 export type SpellFacets = Record<SpellGroupId, string[]>
 
@@ -317,26 +329,7 @@ export function spellFacets(sp: Entry, ctx: FacetContext): SpellFacets {
 // 比對
 // ---------------------------------------------------------------------------
 
-export function matchGroup(values: readonly string[], g: GroupState | undefined): boolean {
-  if (!g) return true
-  const any = values.length === 1 && values[0] === '*'
-  const has = (t: string) => any || values.includes(t)
-  const include: string[] = []
-  for (const [t, s] of Object.entries(g.tags)) {
-    if (s === -1 && has(t)) return false
-    if (s === 1) include.push(t)
-  }
-  if (!include.length) return true
-  return g.mode === 'and' ? include.every(has) : include.some(has)
-}
-
-export function matchFacets(f: SpellFacets, state: SpellFilterState): boolean {
-  for (const id of SPELL_GROUP_IDS) {
-    const g = state[id]
-    if (g && !matchGroup(f[id], g)) return false
-  }
-  return true
-}
+export const matchFacets = (f: SpellFacets, state: SpellFilterState): boolean => matchAll(f, state, SPELL_GROUP_IDS)
 
 /** 文字搜尋：中文名、英文名、別名、來源代碼或縮寫（共用 entryMatches）。 */
 export const spellMatchesQuery = (sp: Entry, query: string) => entryMatches(sp, query)
@@ -373,14 +366,7 @@ export function availableTags(
   facetsOf: (sp: Entry) => SpellFacets,
   label: (v: string) => string = (v) => tagLabel(group, v),
 ): string[] {
-  const set = new Set<string>()
-  for (const sp of spells) for (const v of facetsOf(sp)[group]) if (v !== '*') set.add(v)
-  const fixed = FIXED_ORDER[group]
-  if (fixed) {
-    const known = fixed.filter((v) => set.has(v))
-    return [...known, ...[...set].filter((v) => !fixed.includes(v)).sort()]
-  }
-  return [...set].sort((a, b) => label(a).localeCompare(label(b), 'zh'))
+  return collectTags(spells, (sp) => facetsOf(sp)[group], label, FIXED_ORDER[group])
 }
 
 export interface DefaultContext {
@@ -392,7 +378,7 @@ export interface DefaultContext {
 
 /** 某個群組的預設值：來源＝啟用的書目（包含）；重印＝排除（除非全域顯示舊版）；其餘不篩選。 */
 export function defaultGroup(group: SpellGroupId, ctx: DefaultContext): GroupState | undefined {
-  if (group === 'source') return { mode: 'or', tags: Object.fromEntries(ctx.enabledSources.map((s) => [s, 1 as const])) }
+  if (group === 'source') return sourceDefault(ctx.enabledSources)
   if (group === 'misc' && !ctx.showLegacy) return { mode: 'or', tags: { reprinted: -1 } }
   return undefined
 }
@@ -406,42 +392,12 @@ export function defaultFilterState(ctx: DefaultContext): SpellFilterState {
   return out
 }
 
-/** 三態循環：不篩選 → 包含 → 排除 → 不篩選（上游的點擊順序）。回傳新的群組狀態。 */
-export function cycleTag(g: GroupState | undefined, tag: string): GroupState {
-  const tags = { ...g?.tags }
-  const cur = tags[tag]
-  if (cur === undefined) tags[tag] = 1
-  else if (cur === 1) tags[tag] = -1
-  else delete tags[tag]
-  return { mode: g?.mode ?? 'or', tags }
-}
-
-/** 全選：所有可用標籤設為包含。 */
-export const selectAll = (g: GroupState | undefined, tags: readonly string[]): GroupState => ({
-  mode: g?.mode ?? 'or',
-  tags: Object.fromEntries(tags.map((t) => [t, 1 as const])),
-})
-
-/** 清除：整個群組不篩選（保留 AND／OR）。 */
-export const clearGroup = (g: GroupState | undefined): GroupState => ({ mode: g?.mode ?? 'or', tags: {} })
-
-export const toggleMode = (g: GroupState | undefined): GroupState => ({
-  tags: { ...g?.tags },
-  mode: g?.mode === 'and' ? 'or' : 'and',
-})
-
-/** 群組目前有幾個標籤在作用（面板收合時顯示用）。 */
-export const activeCount = (g: GroupState | undefined) => (g ? Object.keys(g.tags).length : 0)
-
 // ---------------------------------------------------------------------------
 // 排序
 // ---------------------------------------------------------------------------
 
 export type SpellSortKey = 'name' | 'level' | 'time' | 'school' | 'conc' | 'range' | 'duration' | 'components' | 'source'
-export interface SpellSort {
-  key: SpellSortKey
-  dir: 1 | -1
-}
+export type SpellSort = SortState<SpellSortKey>
 export const DEFAULT_SORT: SpellSort = { key: 'level', dir: 1 }
 
 const idxOf = (sp: Entry) => (sp.idx as SpellIndex | undefined) ?? ({} as Partial<SpellIndex>)
@@ -463,9 +419,6 @@ const SORT_VALUE: Record<SpellSortKey, (sp: Entry) => number | string> = {
 export function sortSpells(list: readonly Entry[], sort: SpellSort = DEFAULT_SORT): Entry[] {
   const val = SORT_VALUE[sort.key]
   return [...list].sort((a, b) => {
-    const va = val(a)
-    const vb = val(b)
-    const c = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'zh')
-    return c * sort.dir || Number(a.level) - Number(b.level) || byName(a, b)
+    return compareValues(val(a), val(b), sort.dir) || Number(a.level) - Number(b.level) || byName(a, b)
   })
 }

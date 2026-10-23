@@ -209,6 +209,14 @@ async function interactionSmoke(page, problems) {
       if (rows !== badges) problems.push(`分頁 ${tab}：${rows} 列只有 ${badges} 個來源徽章`)
     }
 
+    // M7-6：語言分頁是表格，每列都要有來源徽章
+    await page.click('[data-tab="language"]')
+    const langRows = page.locator('[data-testid="language-table"] tbody tr')
+    await langRows.first().waitFor({ timeout: 5000 })
+    const nLang = await langRows.count()
+    const nLangBadged = await page.locator('[data-testid="language-table"] tbody tr:has([data-testid="source-badge"])').count()
+    if (!nLang || nLang !== nLangBadged) problems.push(`語言分頁：${nLang} 列只有 ${nLangBadged} 列有來源徽章`)
+
     // M4-1：徽章顯示縮寫（PHB24），搜尋縮寫或原始代碼結果相同
     await page.click('[data-tab="race"]')
     await waitCount()
@@ -309,6 +317,22 @@ async function builderSmoke(page, problems) {
     if (await slot('base:languages').locator('[data-value="abyssal"]').count()) problems.push('語言：稀有語言（深淵語）預設不應列出')
     await slot('base:languages').getByTestId('show-restricted').locator('input').check()
     if (!(await slot('base:languages').locator('[data-value="abyssal"]').count())) problems.push('語言：打開開關後應列出稀有語言')
+    // M7-6：語言表格可依「類型」排序；篩選「標準」後沒有稀有語言；秘密語言不能自選
+    const langs = slot('base:languages')
+    const firstType = () => langs.locator('tbody tr [data-type]').first().getAttribute('data-type')
+    if ((await firstType()) !== 'standard') problems.push('語言：預設依類型排序，第一列應為標準語言')
+    await langs.locator('th[data-sort="type"]').click()
+    if ((await firstType()) === 'standard') problems.push('語言：依類型反向排序後，第一列不應是標準語言')
+    await langs.locator('th[data-sort="type"]').click()
+    if ((await firstType()) !== 'standard') problems.push('語言：再點一次類型排序，第一列應回到標準語言')
+    if (await langs.locator('[data-value="druidic"]').count()) problems.push('語言：秘密語言（德魯伊語）不應出現在選項')
+    if (!(await langs.getByTestId('lang-note').count())) problems.push('語言：稀有語言沒有標示')
+    await langs.getByTestId('lang-filter-toggle').click()
+    await langs.locator('[data-group="type"] [data-tag="standard"]').click()
+    const types = await langs.locator('tbody tr [data-type]').evaluateAll((es) => es.map((e) => e.getAttribute('data-type')))
+    if (!types.length || types.some((t) => t !== 'standard')) problems.push(`語言：篩選「標準」後仍有其他類型：${[...new Set(types)].join(',')}`)
+    await langs.getByText('重設').click()
+    await langs.getByTestId('lang-filter-toggle').click()
     await slot('base:languages').getByTestId('show-restricted').locator('input').uncheck()
     await chip('base:languages', 'dwarvish')
     await chip('base:languages', 'gnomish')

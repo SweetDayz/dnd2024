@@ -7,6 +7,7 @@
  */
 import type { EntryKind } from '../data/ids.ts'
 import { isMundaneItem } from '../data/items.ts'
+import { stripTags } from '../data/tags.ts'
 import type { Entry, SpellClassRef } from '../data/types.ts'
 import { ABILITY_NAME, isAbility } from './abilities.ts'
 
@@ -117,20 +118,68 @@ function makeLanguageList(data: RulesData): Entry[] {
 
 export const languageKey = (l: Entry) => (l.engName ?? l.name).toLowerCase()
 
-/** 語言分類：依資料的 type；沒有 type 的（多半是怪物或設定書的語言）歸為「其他」。 */
-export const LANGUAGE_TYPES = ['standard', 'rare', 'exotic', 'secret', 'other'] as const
+/**
+ * 語言分類（M7-6）：依資料的 type。2014 的「異域 exotic」與 2024 的「稀有 rare」視為同一組；
+ * 沒有 type 的（多半是怪物或設定書的語言）歸為「其他」。
+ */
+export const LANGUAGE_TYPES = ['standard', 'rare', 'secret', 'other'] as const
 export type LanguageType = (typeof LANGUAGE_TYPES)[number]
 export const LANGUAGE_TYPE_LABEL: Record<LanguageType, string> = {
   standard: '標準',
   rare: '稀有',
-  exotic: '異國',
   secret: '秘密',
   other: '其他',
 }
 export function languageType(l: Entry): LanguageType {
   const t = String(l.type ?? '')
+  if (t === 'exotic') return 'rare'
   return (LANGUAGE_TYPES as readonly string[]).includes(t) ? (t as LanguageType) : 'other'
 }
+
+/** 合併後的一種語言：同一個英文名（存檔 key）在多本書出現時只列一次，附上所有來源。 */
+export interface LanguageRow {
+  /** 存檔用的鍵（英文名小寫），與 languageKey 相同 */
+  key: string
+  /** 代表條目（2024 版優先，見 languageList） */
+  entry: Entry
+  /** 目前書目下看得到的所有版本（代表條目排第一） */
+  versions: Entry[]
+  type: LanguageType
+  /** 文字（script）；2024 資料沒有這欄時取其他版本的 */
+  script: string
+  /** 典型使用者（typicalSpeakers 去掉標籤；沒有時用 2024 的 origin） */
+  speakers: string
+}
+
+/**
+ * 語言列（M7-6）。分類規則：
+ * - 任何一個版本（不限目前書目）標成 secret 就是「秘密」：XPHB 把德魯伊語、盜賊黑話列在稀有語言表，
+ *   但它們只能由職業特性給予，PHB／GGR 的版本標 secret，以此辨識，不寫死名單。
+ * - 其他依代表條目的 type；代表條目沒有 type 時，取第一個有 type 的版本。
+ */
+export function languageRows(data: RulesData): LanguageRow[] {
+  return cached(data, 'languageRows', () => {
+    const all = new Map<string, Entry[]>()
+    for (const l of data.list('language')) {
+      const k = languageKey(l)
+      all.set(k, [...(all.get(k) ?? []), l])
+    }
+    return languageList(data).map((entry) => {
+      const key = languageKey(entry)
+      const every = all.get(key) ?? [entry]
+      const versions = [entry, ...every.filter((v) => v !== entry && data.visible(v))]
+      const typed = [entry, ...every].find((v) => v.type)
+      const type: LanguageType = every.some((v) => v.type === 'secret') ? 'secret' : typed ? languageType(typed) : 'other'
+      const script = [entry, ...versions].map((v) => v.script).find((x) => x && x !== 'none')
+      const speakers = Array.isArray(entry.typicalSpeakers)
+        ? (entry.typicalSpeakers as string[]).map(stripTags).join('、')
+        : String(entry.origin ?? '')
+      return { key, entry, versions, type, script: script ? String(script) : '', speakers }
+    })
+  })
+}
+
+export const languageRowOf = (data: RulesData, key: string) => languageRows(data).find((r) => r.key === key)
 
 /** 工具類物品的分類代碼（物品 type 的前段）。 */
 export const TOOL_TYPES: Record<string, string> = {

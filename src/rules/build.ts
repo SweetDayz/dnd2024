@@ -22,7 +22,8 @@ import type { Character } from './character.ts'
 import {
   LANGUAGE_TYPE_LABEL,
   LANGUAGE_TYPES,
-  languageType,
+  languageRows,
+  type LanguageRow,
   canPick,
   languageKey,
   languageList,
@@ -1167,25 +1168,27 @@ function processBackground(ctx: Ctx) {
 
 /** 排序用：2024 核心規則書（XPHB）的語言表排前面，其他書照資料順序 */
 const sourceRank = (e: Entry) => (e.source === 'XPHB' ? 0 : 1)
-const languageOrder = (l: Entry) => LANGUAGE_TYPES.indexOf(languageType(l)) * 2 + sourceRank(l)
+const languageOrder = (r: LanguageRow) => LANGUAGE_TYPES.indexOf(r.type) * 2 + sourceRank(r.entry)
 
 /**
  * 2024 規則：每個角色會通用語，再選兩種標準語言。
- * 選項列出目前書目的全部語言，依資料的 type 分組；標準語言以外（稀有、異國、秘密、沒有 type 的「其他」）
- * 預設不列出，需 DM 同意才打開。
+ * 選項列出目前書目的語言（同名多本書合併成一列，見 languageRows），依類型分組：
+ * - 標準語言直接列出；
+ * - 稀有（含 2014 的異域）與沒有 type 的「其他」預設不列出，需 DM 同意才打開（審卡報告會提示）；
+ * - 秘密語言（德魯伊語、盜賊黑話）不能自選，只能由特性給予，所以不在選項裡。
  */
 function processBaseLanguages(ctx: Ctx) {
   const origin: Origin = { type: 'rule', name: '2024 角色起源：語言', level: 1 }
   grantProf(ctx, 'language', 'common', origin)
-  const options: ChoiceOption[] = languageList(ctx.data)
-    .filter((l) => languageKey(l) !== 'common')
+  const options: ChoiceOption[] = languageRows(ctx.data)
+    .filter((r) => r.key !== 'common' && r.type !== 'secret')
     .sort((a, b) => languageOrder(a) - languageOrder(b))
-    .map((l) => ({
-      value: languageKey(l),
-      label: profLabel(ctx.data, 'language', languageKey(l)),
-      entry: l,
-      group: LANGUAGE_TYPE_LABEL[languageType(l)],
-      ...(languageType(l) === 'standard' ? {} : { restricted: true }),
+    .map((r) => ({
+      value: r.key,
+      label: profLabel(ctx.data, 'language', r.key),
+      entry: r.entry,
+      group: LANGUAGE_TYPE_LABEL[r.type],
+      ...(r.type === 'standard' ? {} : { restricted: true }),
     }))
   const sel = addSlot(ctx, {
     key: 'base:languages',

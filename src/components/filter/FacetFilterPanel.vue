@@ -1,46 +1,47 @@
-<script setup lang="ts">
-// 法術篩選面板（仿上游 5etools）：每個群組一列標籤，點標籤循環「包含（藍）→ 排除（紅）→ 不篩選」。
-// 每個群組可以切換 AND／OR，並有「全選」「清除」「預設」。
-// 這個元件不自己存狀態：收到目前的 state，改動時 emit 新的 state，由父元件決定存到哪裡（spellPrefs store）。
+<script setup lang="ts" generic="G extends string">
+// 通用三態篩選面板（仿上游 5etools；M5 的法術篩選面板在 M7-6 抽成通用元件，法術、語言、物品共用）。
+// 每個群組一列標籤，點標籤循環「包含（藍）→ 排除（紅）→ 不篩選」；每個群組可以切換 AND／OR，並有「全選」「清除」「預設」。
+// 這個元件不自己存狀態：收到目前的 state，改動時 emit 新的 state，由父元件決定存到哪裡（偏好 store）。
+// `generic="G extends string"`：群組 id 的型別由使用的地方決定（例如 SpellGroupId），TypeScript 會幫忙檢查。
+// 預設 slot 放在群組之後，給「價值範圍」這類不是標籤的篩選用。
 import {
-  SPELL_GROUP_IDS,
-  SPELL_GROUP_LABEL,
   activeCount,
   clearGroup,
   cycleTag,
   selectAll,
   toggleMode,
+  type FilterState,
   type GroupState,
-  type SpellFilterState,
-  type SpellGroupId,
-} from '@/data/spellFilter'
+} from '@/data/facetFilter'
 
 const props = defineProps<{
-  state: SpellFilterState
-  /** 各群組在候選範圍內出現的標籤（空的群組不顯示） */
-  tags: Partial<Record<SpellGroupId, string[]>>
-  label: (group: SpellGroupId, value: string) => string
+  /** 群組（依顯示順序） */
+  groups: readonly { id: G; label: string }[]
+  state: FilterState<G>
+  /** 各群組實際出現的標籤（空的群組不顯示） */
+  tags: Partial<Record<G, string[]>>
+  label: (group: G, value: string) => string
   /** 群組的預設值（「預設」按鈕用） */
-  defaults: SpellFilterState
+  defaults: FilterState<G>
 }>()
-const emit = defineEmits<{ update: [state: SpellFilterState] }>()
+const emit = defineEmits<{ update: [state: FilterState<G>] }>()
 
-function set(group: SpellGroupId, g: GroupState | undefined) {
+function set(group: G, g: GroupState | undefined) {
   const next = { ...props.state }
   if (g && (Object.keys(g.tags).length || g.mode === 'and')) next[group] = g
   else delete next[group]
   emit('update', next)
 }
 
-const tagState = (group: SpellGroupId, tag: string) => props.state[group]?.tags[tag]
+const tagState = (group: G, tag: string) => props.state[group]?.tags[tag]
 </script>
 
 <template>
-  <div class="panel" data-testid="spell-filter-panel">
-    <template v-for="id in SPELL_GROUP_IDS" :key="id">
+  <div class="panel" data-testid="filter-panel">
+    <template v-for="{ id, label: groupLabel } in groups" :key="id">
       <div v-if="tags[id]?.length" class="group" :data-group="id">
         <div class="ghead">
-          <strong>{{ SPELL_GROUP_LABEL[id] }}</strong>
+          <strong>{{ groupLabel }}</strong>
           <span v-if="activeCount(state[id])" class="count">{{ activeCount(state[id]) }}</span>
           <button
             type="button"
@@ -71,6 +72,7 @@ const tagState = (group: SpellGroupId, tag: string) => props.state[group]?.tags[
         </div>
       </div>
     </template>
+    <slot />
   </div>
 </template>
 
