@@ -29,7 +29,7 @@ describe.skipIf(!hasRealData)('手動覆寫會連動所有相關數值', () => {
     expect(s.skills.find((x) => x.key === 'arcana')?.mod).toBe(11)
     expect(s.passive.investigation).toBe(21)
     expect(casting[0]).toMatchObject({ dc: 19, attack: 11 })
-    expect(spells.find((r) => r.spell.name === '雷鸣波')?.hitDc).toBe('体质 19')
+    expect(spells.find((r) => r.spell.name === '雷鸣波')?.hitDc).toBe('体质豁免 DC 19')
     expect(attacks.find((a) => a.name === '冷冻射线')?.hitDc).toBe('+11')
   })
   it('覆寫體質：HP 連動；覆寫敏捷：先攻、AC、匕首連動；覆寫力量：負重連動', () => {

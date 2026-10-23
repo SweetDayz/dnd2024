@@ -17,7 +17,22 @@ import { ABILITIES, ABILITY_NAME, isAbility, type Ability } from './abilities.ts
 import { abilityScores } from './derive.ts'
 import { goldAlternative, startingSets } from './equipment.ts'
 import { canMulticlass } from './multiclass.ts'
-import { classCastings, classSpellList } from './spells.ts'
+import { classCastings, classMaxSpellLevel, classSpellList } from './spells.ts'
+import {
+  GRANT_KIND_LABEL,
+  arcanumTemplates,
+  parseAbility,
+  parseAdditionalSpells,
+  pickIsCantrip,
+  templateActive,
+  type CastMode,
+  type GrantKind,
+  type GrantTemplate,
+  type HostCasting,
+  type HostInfo,
+  type SpellPick,
+} from './spells/grants.ts'
+import { schoolName } from '../data/summary.ts'
 import type { Character } from './character.ts'
 import {
   LANGUAGE_TYPE_LABEL,
@@ -138,6 +153,10 @@ export interface SpellScope {
   tab: string
   /** cantrips 職業戲法；spellbook 法術書；prepared 準備法術；known 已知法術；feature 種族、專長等給的選擇 */
   role: 'cantrips' | 'spellbook' | 'prepared' | 'known' | 'feature'
+  /** 選到的法術以什麼方式取得（M9.md §1.1） */
+  kind: GrantKind
+  /** 不占名額（子職的免費法術書、額外戲法…） */
+  free?: boolean
   /** 戲法欄位（只有 0 環）；否則是一環以上 */
   cantrip: boolean
   /** 職業法術清單（中文職業名） */
@@ -150,6 +169,27 @@ export interface SpellScope {
   fromIds?: string[]
   /** 重複偵測時忽略的相關欄位（法術書與準備法術互相包含是正常的） */
   linked?: string[]
+  /**
+   * 合併的池子：每一格各自的條件（selected 的位置有意義，空格為 ''）。
+   * 例如死灵师學派 [≤2 環, ≤2 環, ≤3 環]，秘法奧義 [6 環, 7 環]。
+   */
+  slots?: { label: string; filter?: string; from?: string[] }[]
+  /** 法術書制（法師）的池子資訊，只掛在法術書欄位上；見 spells/spellbook.ts */
+  book?: SpellbookInfo
+}
+
+export interface SpellbookInfo {
+  bookKey: string
+  prepKey: string
+  bookCap: number
+  prepCap: number
+  maxLevel: number
+  /** 免費加入法術書的法術：[id, 來源] */
+  free: [string, string][]
+  /** 已由其他來源永遠準備的法術：[id, 來源] */
+  always: [string, string][]
+  /** 準備法術的更換時機：「長休後可全部重選」「升級時可替換一個」 */
+  changeLabel: string
 }
 
 export interface ProfGrant {
@@ -180,15 +220,14 @@ export interface SpellGrant {
   /** 由選擇欄位得到的法術 */
   slotKey?: string
   origin: Origin
-  /** 施法屬性：固定值、`inherit`（沿用職業）、或尚未選擇（undefined） */
+  /** 施法屬性：固定值、`inherit`（承接專長所選的屬性加值）、或尚未選擇（undefined＝沿用職業） */
   ability?: Ability | 'inherit'
-  /**
-   * known：習得（戲法、種族與專長給的法術）；prepared：永遠準備；innate：天生施法；expanded：擴充職業清單；
-   * spellbook：在法術書裡（未必準備）；class：職業選的已準備／已知法術（佔職業的數量上限）
-   */
-  mode: 'known' | 'prepared' | 'innate' | 'expanded' | 'spellbook' | 'class'
-  /** 不耗法術位的施展次數 */
-  uses?: { n: number | 'pb'; per: 'long' | 'short' | 'will' }
+  /** 取得方式（M9.md §1.1）：cantrip、known、spellbook、prepared、always、innate、arcanum */
+  kind: GrantKind
+  /** 不占名額（子職的免費法術書、額外已知法術、額外戲法） */
+  free?: boolean
+  /** 施放方式（法術位、免費 1/長休、儀式…） */
+  castModes: CastMode[]
 }
 
 export type FeatureCategory = 'class' | 'subclass' | 'race' | 'background' | 'feat' | 'optionalfeature'
@@ -252,6 +291,8 @@ interface Ctx {
   out: Build
   /** 已處理過的專長 key，避免循環 */
   seen: Set<string>
+  /** 擴充法術清單：職業 id（或 '*'＝所有施法職業）→ 額外的法術 id 與篩選字串 */
+  expanded: Map<string, { ids: Set<string>; filters: string[] }>
 }
 
 const ALL_ABILITIES: string[] = [...ABILITIES]
@@ -264,6 +305,8 @@ function abilityLabel(a: string): string {
 function addSlot(
   ctx: Ctx,
   s: Omit<ChoiceSlot, 'selected' | 'done' | 'warnings'> & { warnings?: string[] },
+  /** 位置有意義的欄位（法術池子）：第 i 格能不能放這個值 */
+  accept?: (i: number, value: string) => boolean,
 ): string[] {
   const raw = ctx.c.choices[s.key] ?? []
   const valid = new Set(s.options.map((o) => o.value))
@@ -272,10 +315,16 @@ function addSlot(
   if (s.type === 'abilityWeighted') {
     // 位置有意義（第 i 個位置得到 weights[i]），空位以 '' 表示
     selected = Array.from({ length: s.count }, (_, i) => (valid.has(raw[i] ?? '') ? raw[i]! : ''))
+  } else if (accept) {
+    // 法術池子：每一格各自檢查條件；不符合的格子視為空格
+    selected = Array.from({ length: s.count }, (_, i) => {
+      const v = raw[i] ?? ''
+      return v && valid.has(v) && accept(i, v) ? v : ''
+    })
   } else {
     selected = raw.filter((v) => valid.has(v)).slice(0, s.count)
   }
-  const stale = raw.filter((v) => v && !valid.has(v))
+  const stale = raw.filter((v, i) => v && (!valid.has(v) || (accept ? selected[i] !== v : false)))
   if (stale.length) warnings.push(`先前的選擇目前不可用（可能是書目或其他選擇改了）：${stale.join('、')}`)
   const filled = selected.filter(Boolean).length
   const slot: ChoiceSlot = {
@@ -699,20 +748,80 @@ function processSensesSpeed(ctx: Ctx, e: Entry, origin: Origin) {
 // 法術（additionalSpells）
 // ---------------------------------------------------------------------------
 
-const SPELL_MODE_LABEL: Record<SpellGrant['mode'], string> = {
-  known: '習得',
-  prepared: '永遠準備',
-  innate: '天生施法',
-  expanded: '擴充法術表',
-  spellbook: '法術書',
-  class: '職業',
+/** 職業（或子職施法者）的施法制度：法術書、已知法術（2014）、準備法術 */
+export function hostCasting(e: Entry | undefined): HostCasting {
+  if (!e) return 'none'
+  if (e.spellsKnownProgressionFixed) return 'spellbook'
+  if (e.spellsKnownProgression && !e.preparedSpellsProgression) return 'known'
+  if (e.preparedSpellsProgression || e.preparedSpells) return 'prepared'
+  return 'none'
+}
+
+/** 職業、子職宿主的施法資訊（子職看所屬職業；奧法騎士這類子職施法者看子職自己） */
+function classHost(ctx: Ctx, origin: Origin): { casting: HostCasting; pact?: boolean; maxSpellLevel?: number; classId?: string } {
+  const e = origin.entry
+  if (!e || (origin.type !== 'class' && origin.type !== 'subclass')) return { casting: 'none' }
+  const info = ctx.out.classes.find((i) => i.entry.id === e.id || i.subclass?.id === e.id)
+  if (!info) return { casting: 'none' }
+  const from = info.subclass?.casterProgression ? info.subclass : info.entry
+  const progression = String(from.casterProgression ?? '')
+  return {
+    casting: from.casterProgression ? hostCasting(from) : 'none',
+    ...(progression === 'pact' ? { pact: true } : {}),
+    maxSpellLevel: classMaxSpellLevel(info),
+    classId: info.entry.id,
+  }
+}
+
+/** 沒寫來源的法術參照：2024 宿主先找 XPHB，2014 宿主先找 PHB；找不到再試另一本 */
+function lookupSpellRef(ctx: Ctx, ref: string, origin: Origin): Entry | undefined {
+  const first = origin.entry?.edition === '2024' ? 'XPHB' : 'PHB'
+  const sp = lookupRef(ctx.data, 'spell', ref, first)
+  if (sp || ref.includes('|')) return sp
+  const other = lookupRef(ctx.data, 'spell', ref, first === 'XPHB' ? 'PHB' : 'XPHB')
+  if (other) ctx.out.notes.push({ text: `法術「${ref}」沒寫來源，推定為 ${first} 找不到，改用 ${other.source}`, origin })
+  return other
+}
+
+/** 選到的法術若是戲法，取得方式改成戲法（例如死灵师的學派法術篩選含 0 環） */
+function kindFor(t: GrantTemplate, sp: Entry): { kind: GrantKind; free?: boolean } {
+  if (Number(sp.level) === 0 && t.kind !== 'expanded') return { kind: 'cantrip', ...(t.free || t.kind !== 'cantrip' ? { free: true } : {}) }
+  return { kind: t.kind, ...(t.free ? { free: true } : {}) }
+}
+
+/** 池子每一格的條件文字：「≤2 環」「6 環」「戲法」 */
+function slotLabel(p: SpellPick): string {
+  if ('from' in p) return `從 ${p.from.length} 道中選`
+  if (!('filter' in p)) return ''
+  const lv = parseSpellFilter(p.filter).levels
+  if (!lv?.length) return '不限環位'
+  if (lv.every((l) => l === 0)) return '戲法'
+  const max = Math.max(...lv)
+  return lv.length === 1 ? `${max} 環` : `≤${max} 環`
+}
+
+/** 某一格可選的法術 id */
+function slotOptions(ctx: Ctx, p: SpellPick, origin: Origin): Entry[] {
+  if ('filter' in p) return spellsByFilter(ctx.data, p.filter)
+  if ('from' in p) return p.from.map((r) => lookupSpellRef(ctx, r.replace(/#c$/i, ''), origin)).filter((e): e is Entry => !!e && canPick(ctx.data, e))
+  return []
+}
+
+/** 擴充清單：職業宿主只擴充自己的職業；種族、專長給的擴充所有施法職業 */
+function addExpanded(ctx: Ctx, classId: string | undefined, add: { ids?: string[]; filter?: string }) {
+  const k = classId ?? '*'
+  const cur = ctx.expanded.get(k) ?? { ids: new Set<string>(), filters: [] }
+  add.ids?.forEach((id) => cur.ids.add(id))
+  if (add.filter) cur.filters.push(add.filter)
+  ctx.expanded.set(k, cur)
 }
 
 /**
- * additionalSpells：
- *   { ability, known: {等級: [法術]}, prepared: {...}, innate: {等級: {daily: {"1": [...]}, rest: {...}, will: [...]}}, expanded: {...} }
- * 等級鍵 `_` = 一開始就有；數字 = 角色等級（種族、背景、專長）或職業等級（職業、子職）；`s1` = 法術環位（擴充表）。
- * 法術可以是固定的 `名稱|來源` 或 `{choose: "level=0|class=牧师", count}`。
+ * additionalSpells（解析見 spells/grants.ts）：
+ *   - 固定法術 → SpellGrant
+ *   - 選擇（篩選字串或固定清單）→ 同一特性、同一種取得方式合併成一個選擇欄位（池子），每一格各自的條件記在 spell.slots
+ *   - expanded → 擴充職業法術清單
+ * 外層陣列多個元素＝互斥方案，用 `:spells:alt` 欄位選一個。
  */
 function processSpells(ctx: Ctx, list: Json[], prefix: string, origin: Origin, levelNow: number, step: Step) {
   const key = `${prefix}:spells`
@@ -726,10 +835,12 @@ function processSpells(ctx: Ctx, list: Json[], prefix: string, origin: Origin, l
     step,
   )
   if (!alt) return
+  const option = list.indexOf(alt)
 
   let ability: Ability | 'inherit' | undefined
-  if (typeof alt.ability === 'string') ability = alt.ability === 'inherit' ? 'inherit' : isAbility(alt.ability) ? alt.ability : undefined
-  else if (alt.ability?.choose) {
+  const spec = parseAbility(alt.ability)
+  if (typeof spec === 'string') ability = spec
+  else if (spec?.choose) {
     const [a] = addSlot(ctx, {
       key: `${key}:ability`,
       type: 'ability',
@@ -737,76 +848,112 @@ function processSpells(ctx: Ctx, list: Json[], prefix: string, origin: Origin, l
       origin,
       step,
       count: 1,
-      options: (alt.ability.choose as string[]).map((a) => ({ value: a, label: abilityLabel(a) })),
+      options: spec.choose.map((a) => ({ value: a, label: abilityLabel(a) })),
     })
     if (a && isAbility(a)) ability = a
   }
+  // inherit：承接這個專長本身所選的屬性加值（例如妖精觸碰選了 +1 智力就用智力）
+  if (ability === 'inherit') {
+    const bonus = ctx.out.abilityBonuses.filter((g) => g.origin.entry?.id === origin.entry?.id).pop()
+    if (bonus) ability = bonus.ability
+  }
+
+  const ch = classHost(ctx, origin)
+  const host: HostInfo = {
+    type: origin.type,
+    ...(origin.entry?.edition ? { edition: String(origin.entry.edition) } : {}),
+    casting: ch.casting,
+    ...(ch.pact ? { pact: true } : {}),
+    level: levelNow,
+    ...(ch.maxSpellLevel !== undefined ? { maxSpellLevel: ch.maxSpellLevel } : {}),
+  }
+  const templates = parseAdditionalSpells(list, host).templates.filter((t) => t.option === option && templateActive(t, host))
+  const grant = (gkey: string, sp: Entry, t: GrantTemplate, slotKey?: string) =>
+    ctx.out.spells.push({
+      key: gkey,
+      spellId: sp.id,
+      ...(slotKey ? { slotKey } : {}),
+      origin,
+      ...(ability ? { ability } : {}),
+      ...kindFor(t, sp),
+      castModes: t.castModes,
+    })
 
   let n = 0
-  const addList = (items: Json[], mode: SpellGrant['mode'], uses?: SpellGrant['uses']) => {
-    for (const it of items) {
-      const gkey = `${key}:${n++}`
-      if (typeof it === 'string') {
-        const sp = lookupRef(ctx.data, 'spell', it)
-        if (!sp) {
-          ctx.out.notes.push({ text: `找不到法術「${it}」（可能該書未啟用）`, origin })
-          continue
-        }
-        ctx.out.spells.push({ key: gkey, spellId: sp.id, origin, ...(ability ? { ability } : {}), mode, ...(uses ? { uses } : {}) })
-      } else if (it?.choose && mode !== 'expanded') {
-        const count = it.count ?? 1
-        const options = spellsByFilter(ctx.data, String(it.choose)).map((sp) => entryOption(sp))
-        const levels = parseSpellFilter(String(it.choose)).levels
-        const cantrip = !!levels?.length && levels.every((l) => l === 0)
-        const sel = addSlot(ctx, {
-          key: gkey,
-          type: 'spell',
-          label: `${SPELL_MODE_LABEL[mode]}法術（選 ${count}）`,
-          origin,
-          step: 'spells',
-          count,
-          options,
-          spell: {
-            tab: `${origin.name}・${cantrip ? '戲法' : '法術'}`,
-            role: 'feature',
-            cantrip,
-            filter: String(it.choose),
-          },
-        })
-        sel.forEach((id, i) =>
-          ctx.out.spells.push({
-            key: `${gkey}:${i}`,
-            spellId: id,
-            slotKey: gkey,
-            origin,
-            ...(ability ? { ability } : {}),
-            mode,
-            ...(uses ? { uses } : {}),
-          }),
-        )
+  const pools = new Map<string, GrantTemplate[]>()
+  for (const t of templates) {
+    const p = t.pick
+    if (t.kind === 'expanded') {
+      const expandTo = origin.type === 'class' || origin.type === 'subclass' ? ch.classId : undefined
+      if ('all' in p) addExpanded(ctx, expandTo, { filter: p.all })
+      else if ('ref' in p) {
+        const sp = lookupSpellRef(ctx, p.ref, origin)
+        if (sp) addExpanded(ctx, expandTo, { ids: [sp.id] })
       }
+      continue
+    }
+    if ('ref' in p) {
+      const sp = lookupSpellRef(ctx, p.ref, origin)
+      if (!sp) {
+        ctx.out.notes.push({ text: `找不到法術「${p.ref}」（可能該書未啟用）`, origin })
+        continue
+      }
+      grant(`${key}:${n++}`, sp, t)
+    } else if ('filter' in p || 'from' in p) {
+      const pk = t.kind
+      pools.set(pk, [...(pools.get(pk) ?? []), t])
     }
   }
 
-  for (const mode of ['known', 'prepared', 'innate', 'expanded'] as const) {
-    const byLevel = alt[mode]
-    if (!byLevel || typeof byLevel !== 'object') continue
-    for (const [lv, val] of Object.entries<Json>(byLevel)) {
-      const min = lv === '_' || lv.startsWith('s') ? 1 : Number(lv)
-      if (!(min <= levelNow)) continue
-      if (Array.isArray(val)) addList(val, mode)
-      else if (val && typeof val === 'object') {
-        if (Array.isArray(val.will)) addList(val.will, mode, { n: 1, per: 'will' })
-        if (Array.isArray(val.ritual)) addList(val.ritual, mode)
-        for (const per of ['daily', 'rest'] as const) {
-          for (const [times, items] of Object.entries<Json>(val[per] ?? {})) {
-            const nTimes = times === 'pb' ? 'pb' : Number.parseInt(times, 10)
-            addList([].concat(items), mode, { n: nTimes, per: per === 'daily' ? 'long' : 'short' })
-          }
-        }
-      }
-    }
+  // 每個池子＝一個選擇欄位；位置有意義（第 i 格的條件是 slots[i]）
+  for (const [kind, ts] of pools) {
+    const slotKey = `${key}:${kind}`
+    const cells = ts.flatMap((t) => Array.from({ length: t.pick && 'count' in t.pick ? t.pick.count : 1 }, () => t))
+    const perCell = cells.map((t) => new Set(slotOptions(ctx, t.pick, origin).map((e) => e.id)))
+    const all = new Map<string, Entry>()
+    for (const t of ts) for (const e of slotOptions(ctx, t.pick, origin)) all.set(e.id, e)
+    const cantrip = ts.every((t) => pickIsCantrip(t.pick))
+    const restriction = describeCells(cells.map((t) => t.pick))
+    const sel = addSlot(
+      ctx,
+      {
+        key: slotKey,
+        type: 'spell',
+        label: `${GRANT_KIND_LABEL[kind as GrantKind]}（選 ${cells.length}${restriction ? `；${restriction}` : ''}）`,
+        origin,
+        step: 'spells',
+        count: cells.length,
+        options: [...all.values()].map((e) => entryOption(e)),
+        spell: {
+          tab: `${origin.name}・${cantrip ? '戲法' : '法術'}`,
+          role: 'feature',
+          kind: kind as GrantKind,
+          ...(ts[0]!.free ? { free: true } : {}),
+          cantrip,
+          ...(ts.length === 1 && 'filter' in ts[0]!.pick ? { filter: ts[0]!.pick.filter } : {}),
+          slots: cells.map((t, i) => ({ label: slotLabel(t.pick), ...('filter' in t.pick ? { filter: t.pick.filter } : { from: [...perCell[i]!] }) })),
+        },
+      },
+      (i, v) => !!perCell[i]?.has(v),
+    )
+    sel.forEach((id, i) => {
+      const sp = ctx.data.get(id)
+      if (sp && cells[i]) grant(`${slotKey}:${i}`, sp, cells[i]!, slotKey)
+    })
   }
+}
+
+/** 池子的限制白話文：「≤2 環 ×2、≤3 環 ×1，限死灵系」 */
+function describeCells(picks: SpellPick[]): string {
+  const counts = new Map<string, number>()
+  for (const p of picks) {
+    const l = slotLabel(p)
+    if (l) counts.set(l, (counts.get(l) ?? 0) + 1)
+  }
+  const parts = counts.size > 1 || picks.length > 1 ? [...counts].map(([l, c]) => (c > 1 ? `${l} ×${c}` : l)) : [...counts.keys()]
+  const schools = [...new Set(picks.flatMap((p) => ('filter' in p ? (parseSpellFilter(p.filter).schools ?? []) : [])))]
+  const text = parts.join('、')
+  return schools.length ? `${text}，限${schools.map(schoolName).join('、')}系` : text
 }
 
 // ---------------------------------------------------------------------------
@@ -1468,23 +1615,43 @@ function processClassSpells(ctx: Ctx) {
   for (const cc of classCastings(out.classes, mods, data)) {
     const cls = cc.info.entry
     const origin: Origin = { type: cc.from === cls ? 'class' : 'subclass', name: cc.from.name, entry: cc.from, level: c.levels.length }
-    const opts = (min: number, max: number) => classSpellList(data, cc.listName, min, max).map((sp) => entryOption(sp))
-    const grant = (slotKey: string, ids: string[], mode: SpellGrant['mode']) =>
-      ids.forEach((id, i) => out.spells.push({ key: `${slotKey}:${i}`, spellId: id, slotKey, origin, ...(cc.ability ? { ability: cc.ability } : {}), mode }))
+    const castModes: CastMode[] = [cc.from.casterProgression === 'pact' ? { type: 'pact' } : { type: 'slot' }]
+    // 職業清單＋擴充清單（宗主、魔法奧秘、龍紋…）
+    const extra = [ctx.expanded.get(cls.id), ctx.expanded.get('*')].filter((x): x is NonNullable<typeof x> => !!x)
+    const opts = (min: number, max: number, disable?: (id: string) => string | undefined) => {
+      const m = new Map(classSpellList(data, cc.listName, min, max).map((sp) => [sp.id, sp]))
+      for (const x of extra) {
+        for (const sp of [...[...x.ids].map((id) => data.get(id)), ...x.filters.flatMap((f) => spellsByFilter(data, f))]) {
+          if (sp && canPick(data, sp) && Number(sp.level) >= min && Number(sp.level) <= max) m.set(sp.id, sp)
+        }
+      }
+      return [...m.values()]
+        .sort((a, b) => Number(a.level) - Number(b.level) || (a.engName ?? '').localeCompare(b.engName ?? ''))
+        .map((sp) => entryOption(sp, disable?.(sp.id)))
+    }
+    const grant = (slotKey: string, ids: string[], kind: GrantKind, modes: (id: string) => CastMode[] = () => castModes) =>
+      ids.forEach((id, i) =>
+        out.spells.push({ key: `${slotKey}:${i}`, spellId: id, slotKey, origin, ...(cc.ability ? { ability: cc.ability } : {}), kind, castModes: modes(id) }),
+      )
+    // 已由其他來源取得、不必再占名額的法術
+    const heldCantrips = holders(out, (g) => g.kind === 'cantrip')
+    const heldAlways = holders(out, (g) => g.kind === 'always' || (g.kind === 'innate' && g.castModes.some((m) => m.type === 'slotAlso')) || (g.kind === 'known' && !!g.free))
+    const taken = (m: Map<string, string>) => (id: string) => (m.has(id) ? `已由 ${m.get(id)} 取得` : undefined)
+    const changeLabel = cc.from.preparedSpellsChange === 'level' ? '升級時可替換一個' : '長休後可全部重選'
 
-    const list = { classList: cc.listName }
     if (cc.cantrips > 0) {
       const key = `${cls.id}:cantrips`
-      const spell: SpellScope = { tab: `${cc.from.name}戲法`, role: 'cantrips', cantrip: true, ...list, minLevel: 0, maxLevel: 0 }
-      grant(key, addSlot(ctx, { key, type: 'spell', label: `${cc.from.name}戲法（選 ${cc.cantrips}）`, origin, step: 'spells', count: cc.cantrips, options: opts(0, 0), spell }), 'known')
+      const spell: SpellScope = { tab: `${cc.from.name}戲法`, role: 'cantrips', kind: 'cantrip', cantrip: true, classList: cc.listName, minLevel: 0, maxLevel: 0 }
+      grant(key, addSlot(ctx, { key, type: 'spell', label: `${cc.from.name}戲法（選 ${cc.cantrips}）`, origin, step: 'spells', count: cc.cantrips, options: opts(0, 0, taken(heldCantrips)), spell }), 'cantrip', () => [])
     }
     if (cc.maxSpellLevel < 1) continue
+
     if (cc.spellbook !== undefined) {
-      // 法術書：子職免費加入法術書的法術（例如塑能學者）也算在書裡，可以準備
-      const free = out.spells.filter(
-        (g) => g.origin.type === 'subclass' && g.origin.entry?.id === cc.info.subclass?.id && g.mode === 'known' && g.spellId && Number(data.get(g.spellId)?.level) > 0,
-      )
-      for (const g of free) g.mode = 'spellbook'
+      // 法術書制：同一個池子、兩個名額（書、備）。免費抄寫＝子職給的 spellbook free；永遠準備的鎖住準備階段
+      const free = new Map<string, string>()
+      for (const g of out.spells) {
+        if (g.kind === 'spellbook' && g.free && g.spellId && g.origin.type === 'subclass' && g.origin.entry?.id === cc.info.subclass?.id) free.set(g.spellId, g.origin.name)
+      }
       const key = `${cls.id}:spellbook`
       const prepKey = `${cls.id}:prepared`
       const book = addSlot(ctx, {
@@ -1494,39 +1661,114 @@ function processClassSpells(ctx: Ctx) {
         origin,
         step: 'spells',
         count: cc.spellbook,
-        options: opts(1, cc.maxSpellLevel),
-        spell: { tab: '法術書', role: 'spellbook', cantrip: false, ...list, minLevel: 1, maxLevel: cc.maxSpellLevel, linked: [prepKey] },
+        options: opts(1, cc.maxSpellLevel, (id) => (free.has(id) ? `已由 ${free.get(id)} 免費加入法術書` : undefined)),
+        spell: { tab: '法術書', role: 'spellbook', kind: 'spellbook', cantrip: false, classList: cc.listName, minLevel: 1, maxLevel: cc.maxSpellLevel, linked: [prepKey] },
       })
-      const inBook = [...new Set([...book, ...free.map((g) => g.spellId!)])]
+      const inBookIds = [...new Set([...book, ...free.keys()])]
+      const always = heldAlways
       const prepared = addSlot(ctx, {
         key: prepKey,
         type: 'spell',
-        label: `準備法術（從法術書選 ${cc.prepared ?? 0}）`,
+        label: `準備法術（從法術書選 ${cc.prepared ?? 0}；${changeLabel}）`,
         origin,
         step: 'spells',
         count: cc.prepared ?? 0,
-        options: inBook.map((id) => data.get(id)).filter((e): e is Entry => !!e).map((e) => entryOption(e)),
-        spell: { tab: '準備法術', role: 'prepared', cantrip: false, fromIds: inBook, linked: [key] },
+        options: inBookIds
+          .map((id) => data.get(id))
+          .filter((e): e is Entry => !!e && Number(e.level) <= cc.maxSpellLevel)
+          .map((e) => entryOption(e, always.has(e.id) ? `已由 ${always.get(e.id)} 永遠準備` : undefined)),
+        spell: { tab: '準備法術', role: 'prepared', kind: 'prepared', cantrip: false, fromIds: inBookIds, linked: [key] },
       })
-      grant(key, book.filter((id) => !prepared.includes(id)), 'spellbook')
-      grant(prepKey, prepared, 'class')
-      for (const g of free) if (prepared.includes(g.spellId!)) g.mode = 'class'
+      // 把狀態機需要的資訊掛在法術書欄位上（UI 用 SpellbookRules 包起來）
+      const bookSlot = out.slots.find((s) => s.key === key)!
+      bookSlot.spell!.book = {
+        bookKey: key,
+        prepKey,
+        bookCap: cc.spellbook,
+        prepCap: cc.prepared ?? 0,
+        maxLevel: cc.maxSpellLevel,
+        free: [...free],
+        always: [...always],
+        changeLabel,
+      }
+      const ritual = (id: string): CastMode[] => (isRitualSpell(data.get(id)) ? [{ type: 'ritual' }] : [])
+      grant(key, book, 'spellbook', ritual)
+      grant(prepKey, prepared, 'prepared')
+      // 免費抄寫的儀式法術也能以儀式施放
+      for (const g of out.spells) if (g.kind === 'spellbook' && g.free && g.spellId && free.has(g.spellId)) g.castModes = [...ritual(g.spellId)]
     } else if (cc.known !== undefined || cc.prepared !== undefined) {
       const n = cc.known ?? cc.prepared ?? 0
-      const key = `${cls.id}:${cc.known !== undefined ? 'known' : 'prepared'}`
-      const label = cc.known !== undefined ? '已知法術' : '準備法術'
+      const isKnown = cc.known !== undefined
+      const key = `${cls.id}:${isKnown ? 'known' : 'prepared'}`
+      const label = isKnown ? '已知法術' : `準備法術（${changeLabel}）`
       const spell: SpellScope = {
-        tab: `${cc.from.name}${label}`,
-        role: cc.known !== undefined ? 'known' : 'prepared',
+        tab: `${cc.from.name}${isKnown ? '已知法術' : '準備法術'}`,
+        role: isKnown ? 'known' : 'prepared',
+        kind: isKnown ? 'known' : 'prepared',
         cantrip: false,
-        ...list,
+        classList: cc.listName,
         minLevel: 1,
         maxLevel: cc.maxSpellLevel,
       }
-      grant(key, addSlot(ctx, { key, type: 'spell', label: `${cc.from.name}${label}（選 ${n}，1–${cc.maxSpellLevel} 環）`, origin, step: 'spells', count: n, options: opts(1, cc.maxSpellLevel), spell }), 'class')
+      const sel = addSlot(ctx, {
+        key,
+        type: 'spell',
+        label: `${cc.from.name}${label}（選 ${n}，1–${cc.maxSpellLevel} 環）`,
+        origin,
+        step: 'spells',
+        count: n,
+        options: opts(1, cc.maxSpellLevel, taken(heldAlways)),
+        spell,
+      })
+      grant(key, sel, isKnown ? 'known' : 'prepared')
+    }
+
+    // 秘法奧義（魔契師 11 級起）：一個池子，每一格一個環位
+    const arc = arcanumTemplates(cls, cc.info.level)
+    if (arc.length) {
+      const key = `${cls.id}:arcanum`
+      const cells = arc.flatMap((t) => Array.from({ length: 'count' in t.pick ? t.pick.count : 1 }, () => t))
+      const levelOf = (t: GrantTemplate) => ('filter' in t.pick ? (parseSpellFilter(t.pick.filter).levels?.[0] ?? 0) : 0)
+      const sel = addSlot(
+        ctx,
+        {
+          key,
+          type: 'spell',
+          label: `秘法奧義（${cells.map((t) => `${levelOf(t)} 環`).join('、')} 各選一道）`,
+          origin,
+          step: 'spells',
+          count: cells.length,
+          options: opts(Math.min(...cells.map(levelOf)), 9),
+          spell: {
+            tab: '秘法奧義',
+            role: 'known',
+            kind: 'arcanum',
+            cantrip: false,
+            classList: cc.listName,
+            slots: cells.map((t) => ({ label: `${levelOf(t)} 環`, filter: `level=${levelOf(t)}|class=${cc.listName}` })),
+          },
+        },
+        (i, v) => Number(data.get(v)?.level) === levelOf(cells[i]!),
+      )
+      sel.forEach((id, i) => {
+        if (id) out.spells.push({ key: `${key}:${i}`, spellId: id, slotKey: key, origin, ...(cc.ability ? { ability: cc.ability } : {}), kind: 'arcanum', castModes: cells[i]!.castModes })
+      })
     }
   }
 }
+
+/** 角色目前從哪些來源取得某些法術：spellId → 來源名稱 */
+function holders(out: Build, pred: (g: SpellGrant) => boolean): Map<string, string> {
+  const m = new Map<string, string>()
+  for (const g of out.spells) {
+    if (!g.spellId || !pred(g)) continue
+    const name = g.origin.name.replace(/ \d+ 级$/, '')
+    m.set(g.spellId, m.has(g.spellId) ? `${m.get(g.spellId)}、${name}` : name)
+  }
+  return m
+}
+
+const isRitualSpell = (sp: Entry | undefined) => !!(sp?.meta as { ritual?: boolean } | undefined)?.ritual
 
 // ---------------------------------------------------------------------------
 // 起始裝備：起始職業與背景的 A/B 選項組
@@ -1720,7 +1962,7 @@ export function buildCharacter(c: Character, data: RulesData): Build {
     notes: [],
     legacyPicks: [],
   }
-  const ctx: Ctx = { c, data, out, seen: new Set() }
+  const ctx: Ctx = { c, data, out, seen: new Set(), expanded: new Map() }
   processClasses(ctx)
   processBackground(ctx)
   processRace(ctx)

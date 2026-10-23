@@ -267,16 +267,26 @@ export interface SpellFilter {
   levels?: number[]
   classes?: string[]
   schools?: string[]
+  /** source=EGW（擴充清單） */
+  sources?: string[]
+  /** components & miscellaneous=仪式 */
+  ritual?: boolean
+  /** spell attack=m;r;o：需要法術攻擊檢定 */
+  spellAttack?: boolean
 }
 
 export function parseSpellFilter(s: string): SpellFilter {
   const f: SpellFilter = {}
   for (const part of s.split('|')) {
-    const [k = '', v = ''] = part.split('=')
+    const [rawKey = '', v = ''] = part.split('=')
+    const k = rawKey.trim().toLowerCase()
     const vals = v.split(';').filter(Boolean)
     if (k === 'level') f.levels = vals.map(Number)
     else if (k === 'class') f.classes = vals
     else if (k === 'school') f.schools = vals.map((x) => x.toUpperCase())
+    else if (k === 'source') f.sources = vals.map((x) => x.toUpperCase())
+    else if (k === 'components & miscellaneous') f.ritual = vals.some((x) => x === '仪式' || x.toLowerCase() === 'ritual')
+    else if (k === 'spell attack') f.spellAttack = true
   }
   return f
 }
@@ -292,6 +302,9 @@ export function matchSpellFilter(data: RulesData, sp: Entry, f: SpellFilter): bo
   if (f.levels && !f.levels.includes(Number(sp.level))) return false
   if (f.schools && !f.schools.includes(String(sp.school))) return false
   if (f.classes && !f.classes.some((c) => spellOnClassList(data, sp, c))) return false
+  if (f.sources && !f.sources.includes(String(sp.source).toUpperCase())) return false
+  if (f.ritual && !(sp.meta as { ritual?: boolean } | undefined)?.ritual) return false
+  if (f.spellAttack && !(sp.spellAttack as string[] | undefined)?.length) return false
   return true
 }
 

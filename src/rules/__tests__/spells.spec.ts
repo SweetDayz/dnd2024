@@ -50,7 +50,7 @@ describe.skipIf(!hasRealData)('基準角色的法術（真實資料，對照 DDB
     expect(s.profBonus).toBe(6)
   })
   it('雷鳴波：體質 DC 17、2d8，升環 +1d8', () => {
-    expect(find('雷鸣波')).toMatchObject({ hitDc: '体质 17', damage: '2d8', upcastStep: '1d8', time: '1 动作', components: 'V/S' })
+    expect(find('雷鸣波')).toMatchObject({ hitDc: '体质豁免 DC 17', damage: '2d8', upcastStep: '1d8', time: '1 动作', components: 'V/S' })
   })
   it('冷凍射線：+9、4d8（戲法依角色等級升階）', () => {
     expect(find('冷冻射线')).toMatchObject({ hitDc: '+9', damage: '4d8', range: '60 呎' })
@@ -59,10 +59,10 @@ describe.skipIf(!hasRealData)('基準角色的法術（真實資料，對照 DDB
     expect(find('光导箭')).toMatchObject({ hitDc: '+8', damage: '4d6', usesText: '1/长休', ability: 'wis', alwaysPrepared: true })
   })
   it('睡眠術：感知 DC 17、專注、材料', () => {
-    expect(find('睡眠术')).toMatchObject({ hitDc: '感知 17', concentration: true, components: 'V/S/M' })
+    expect(find('睡眠术')).toMatchObject({ hitDc: '感知豁免 DC 17', concentration: true, components: 'V/S/M' })
   })
   it('塑能學者的燃燒之手在法術書，可以準備；偵測魔法只在書裡、可儀式施展', () => {
-    expect(find('燃烧之手')).toMatchObject({ hitDc: '敏捷 17', damage: '3d6', bookOnly: true })
+    expect(find('燃烧之手')).toMatchObject({ hitDc: '敏捷豁免 DC 17', damage: '3d6', bookOnly: true })
     expect(find('侦测魔法')).toMatchObject({ ritual: true, bookOnly: true })
     expect(find('魔法飞弹', '法师')).toMatchObject({ damage: '1d4+1', bookOnly: false })
   })
@@ -74,7 +74,7 @@ describe.skipIf(!hasRealData)('基準角色的法術（真實資料，對照 DDB
 describe.skipIf(!hasRealData)('12 級', () => {
   it('雷鳴波 DC 15、冷凍射線 +7 3d8', () => {
     const { find } = rowsAt(12)
-    expect(find('雷鸣波')?.hitDc).toBe('体质 15')
+    expect(find('雷鸣波')?.hitDc).toBe('体质豁免 DC 15')
     expect(find('冷冻射线')).toMatchObject({ hitDc: '+7', damage: '3d8' })
   })
   it('1 級：法術書與準備都選完', () => {

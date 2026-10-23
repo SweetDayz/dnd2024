@@ -63,8 +63,7 @@ export function benchmarkLevel(data: RulesData, n: number): Character {
   if (n >= 3) {
     choose(c, data, byKey(`${WIZARD}:subclass`), [EVOKER])
     // 塑能學者：燃燒之手、魔法飛彈（同 DDB）
-    choose(c, data, byKey(`${EVOKER}:spells:0`), ['spell|燃烧之手|XPHB'])
-    choose(c, data, byKey(`${EVOKER}:spells:1`), ['spell|魔法飞弹|XPHB'])
+    choose(c, data, byKey(`${EVOKER}:spells:spellbook`), ['spell|燃烧之手|XPHB', 'spell|魔法飞弹|XPHB'])
   }
   return c
 }

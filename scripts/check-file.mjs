@@ -445,9 +445,9 @@ async function builderSmoke(page, problems) {
     await page.getByTestId('spell-show-blocked').uncheck()
     for (const n of ['侦测魔法', '法师护甲', '魔法飞弹', '睡眠术', '雷鸣波', '护盾术']) await spellPick(`${W}:spellbook`, `spell|${n}|XPHB`)
     for (const n of ['法师护甲', '魔法飞弹', '睡眠术', '雷鸣波']) await spellPick(`${W}:prepared`, `spell|${n}|XPHB`)
-    await spellPick(`${mi}:0`, 'spell|神导术|XPHB')
-    await spellPick(`${mi}:0`, 'spell|修复术|XPHB')
-    await spellPick(`${mi}:1`, 'spell|光导箭|XPHB')
+    await spellPick(`${mi}:cantrip`, 'spell|神导术|XPHB')
+    await spellPick(`${mi}:cantrip`, 'spell|修复术|XPHB')
+    await spellPick(`${mi}:innate`, 'spell|光导箭|XPHB')
     // 右側已學會的法術：依來源分組顯示 DC；點擊會在左側定位並顯示詳情
     const known = page.getByTestId('known-spells')
     if (!(await known.innerText()).includes('DC 13')) problems.push('法術：右側應顯示法師的 DC 13')

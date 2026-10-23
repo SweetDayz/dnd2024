@@ -13,6 +13,7 @@ import { parseTags } from '../data/tags.ts'
 import { ABILITY_NAME, formatMod, isAbility, type Ability } from './abilities.ts'
 import { schoolName } from '../data/summary.ts'
 import type { Build, ChoiceSlot, ClassInfo, Origin, SpellGrant, SpellScope } from './build.ts'
+import type { CastMode, GrantKind } from './spells/grants.ts'
 import { canPick, matchSpellFilter, parseSpellFilter, spellOnClassList, type RulesData } from './data.ts'
 import { casterParts } from './multiclass.ts'
 
@@ -89,6 +90,12 @@ export function subclassSpellList(data: RulesData | undefined, sc: Entry): strin
     if (m) return m[1]!.split(';')[0]!
   }
   return '法师'
+}
+
+/** 某個職業（或子職施法者）目前能施展的最高環位 */
+export function classMaxSpellLevel(info: ClassInfo): number {
+  const from = info.subclass?.casterProgression ? info.subclass : info.entry
+  return maxLevelOf(from, info.level, String(from.casterProgression ?? ''))
 }
 
 export function classCastings(classes: ClassInfo[], mods: Record<Ability, number>, data?: RulesData): ClassCasting[] {
@@ -241,17 +248,35 @@ const SAVE_ABILITY: Record<string, Ability> = {
   charisma: 'cha',
 }
 
+/** 同一道法術從某個來源取得時的數值（施法屬性不同時 DC 與攻擊加值也不同） */
+export interface SpellVariant {
+  grant: SpellGrant
+  ability?: Ability
+  /** 「+9」或「感知豁免 DC 17」或「—」 */
+  hitDc: string
+  attackBonus?: number
+  dc?: number
+  usesText?: string
+  /** 來源顯示名稱 */
+  sourceLabel: string
+}
+
 export interface SpellRow {
   key: string
   spell: Entry
   level: number
-  /** 來源特性顯示名稱，例如「法师」「魔法学徒；牧师」「侏儒」 */
+  /** 主要來源的顯示名稱，例如「法师」「魔法学徒；牧师」「侏儒」 */
   sourceLabel: string
+  /** 主要來源（準備＞永遠準備＞已知＞秘法奧義＞戲法＞天生＞法術書） */
   grant: SpellGrant
+  /** 這道法術的所有來源（M9：同一道法術合併成一列） */
+  grants: SpellGrant[]
+  /** 每個來源各自的數值（依 grants 順序） */
+  variants: SpellVariant[]
   ability?: Ability
   time: string
   range: string
-  /** 「+9」或「体质 17」或「—」 */
+  /** 「+9」或「体质豁免 DC 17」或「—」 */
   hitDc: string
   attackBonus?: number
   dc?: number
@@ -271,10 +296,28 @@ export interface SpellRow {
   bookOnly: boolean
 }
 
-const PER: Record<string, string> = { long: '长休', short: '短休' }
+const PER: Record<string, string> = { daily: '长休', rest: '短休' }
+
+/** 不耗法術位的次數：「1/长休」「随意」「功力 2 点」 */
+export function usesText(modes: CastMode[], pb: number, mods: Record<Ability, number>): string | undefined {
+  const parts: string[] = []
+  for (const m of modes) {
+    if (m.type === 'will') parts.push('随意')
+    else if (m.type === 'daily' || m.type === 'rest') {
+      const n = m.n === 'pb' ? pb : isAbility(m.n) ? Math.max(1, mods[m.n]) : m.n
+      parts.push(`${n}/${PER[m.type]}`)
+    } else if (m.type === 'resource') parts.push(`${m.name || '资源'} ${m.n} 点`)
+  }
+  return parts.length ? parts.join('、') : undefined
+}
+
+/** 主要來源的優先順序（數字越小越優先） */
+const KIND_RANK: Record<GrantKind, number> = { prepared: 0, always: 1, known: 2, arcanum: 3, cantrip: 4, innate: 5, spellbook: 6, expanded: 9 }
+
+const originLabel = (g: SpellGrant) => g.origin.name.replace(/ \d+ 级$/, '').replace(/（.*）$/, '')
 
 /**
- * 角色所有法術的顯示列。
+ * 角色所有法術的顯示列：同一道法術合併成一列（M9.md §2.4），每個來源的 DC、攻擊加值、次數放在 variants。
  * @param mods 屬性調整值；@param pb 熟練加值
  */
 export function spellRows(
@@ -286,35 +329,57 @@ export function spellRows(
 ): SpellRow[] {
   const castings = classCastings(b.classes, mods, data)
   const classAbility = castings[0]?.ability
-  const rows: SpellRow[] = []
+  const bySpell = new Map<string, SpellGrant[]>()
   for (const g of b.spells) {
-    if (!g.spellId || g.mode === 'expanded') continue
-    const sp = data.get(g.spellId)
+    if (!g.spellId || g.kind === 'expanded') continue
+    bySpell.set(g.spellId, [...(bySpell.get(g.spellId) ?? []), g])
+  }
+  const rows: SpellRow[] = []
+  for (const [id, gs] of bySpell) {
+    const sp = data.get(id)
     if (!sp) continue
-    let ability: Ability | undefined = g.ability === 'inherit' ? classAbility : g.ability
-    // 職業、子職的法術用該職業的施法屬性
-    if (!ability && (g.origin.type === 'class' || g.origin.type === 'subclass')) {
-      const cc = castings.find((x) => x.info.entry.id === g.origin.entry?.id || x.info.subclass?.id === g.origin.entry?.id)
-      ability = cc?.ability ?? classAbility
-    }
-    const mod = ability ? mods[ability] : 0
-    const attack = (sp.spellAttack as string[] | undefined)?.length ? pb + mod : undefined
+    const grants = [...gs].sort((x, y) => KIND_RANK[x.kind] - KIND_RANK[y.kind])
     const saveAb = SAVE_ABILITY[String((sp.savingThrow as string[] | undefined)?.[0])]
-    const dc = saveAb ? 8 + pb + mod : undefined
+    const variants = grants.map((g): SpellVariant => {
+      let ability: Ability | undefined = g.ability === 'inherit' ? undefined : g.ability
+      // 職業、子職的法術用該職業的施法屬性
+      if (!ability && (g.origin.type === 'class' || g.origin.type === 'subclass')) {
+        const cc = castings.find((x) => x.info.entry.id === g.origin.entry?.id || x.info.subclass?.id === g.origin.entry?.id)
+        ability = cc?.ability ?? classAbility
+      }
+      const mod = ability ? mods[ability] : 0
+      const attack = (sp.spellAttack as string[] | undefined)?.length ? pb + mod : undefined
+      const dc = saveAb ? 8 + pb + mod : undefined
+      const uses = usesText(g.castModes, pb, mods)
+      return {
+        grant: g,
+        ...(ability ? { ability } : {}),
+        hitDc: attack !== undefined ? formatMod(attack) : dc !== undefined ? `${ABILITY_NAME[saveAb!].zh}豁免 DC ${dc}` : '—',
+        ...(attack !== undefined ? { attackBonus: attack } : {}),
+        ...(dc !== undefined ? { dc } : {}),
+        ...(uses ? { usesText: uses } : {}),
+        sourceLabel: originLabel(g),
+      }
+    })
+    const main = variants[0]!
+    const g = main.grant
     const dur = durationText(sp)
-    const uses = g.uses
+    const kinds = new Set(grants.map((x) => x.kind))
+    const uses = variants.map((v) => v.usesText).find(Boolean)
     rows.push({
       key: g.key,
       spell: sp,
       level: Number(sp.level),
-      sourceLabel: g.origin.name.replace(/ \d+ 级$/, '').replace(/（.*）$/, ''),
+      sourceLabel: main.sourceLabel,
       grant: g,
-      ...(ability ? { ability } : {}),
+      grants,
+      variants,
+      ...(main.ability ? { ability: main.ability } : {}),
       time: castingTime(sp),
       range: rangeText(sp),
-      hitDc: attack !== undefined ? formatMod(attack) : dc !== undefined ? `${ABILITY_NAME[saveAb!].zh} ${dc}` : '—',
-      ...(attack !== undefined ? { attackBonus: attack } : {}),
-      ...(dc !== undefined ? { dc, saveAbility: saveAb } : {}),
+      hitDc: main.hitDc,
+      ...(main.attackBonus !== undefined ? { attackBonus: main.attackBonus } : {}),
+      ...(main.dc !== undefined ? { dc: main.dc, saveAbility: saveAb } : {}),
       ...(baseDamage(sp, charLevel) ? { damage: baseDamage(sp, charLevel)! } : {}),
       ...(upcastStep(sp) ? { upcastStep: upcastStep(sp)! } : {}),
       components: componentsText(sp),
@@ -322,13 +387,9 @@ export function spellRows(
       duration: dur.text,
       concentration: dur.concentration,
       ritual: isRitual(sp),
-      ...(uses
-        ? { usesText: uses.per === 'will' ? '随意' : `${uses.n === 'pb' ? pb : uses.n}/${PER[uses.per]}` }
-        : {}),
-      // 種族、專長、背景給的法術不需要準備；職業選的才佔準備數
-      alwaysPrepared:
-        g.mode === 'prepared' || g.mode === 'innate' || (g.mode === 'known' && g.origin.type !== 'class' && g.origin.type !== 'subclass'),
-      bookOnly: g.mode === 'spellbook',
+      ...(uses ? { usesText: uses } : {}),
+      alwaysPrepared: kinds.has('always') || kinds.has('innate'),
+      bookOnly: kinds.has('spellbook') && !['prepared', 'always', 'known', 'arcanum', 'innate', 'cantrip'].some((k) => kinds.has(k as GrantKind)),
     })
   }
   return rows.sort((a, b) => a.level - b.level || (a.spell.engName ?? '').localeCompare(b.spell.engName ?? ''))
@@ -382,7 +443,7 @@ export function spellScopePool(data: RulesData, scope: SpellScope): Entry[] {
 export function spellHolders(b: Pick<Build, 'spells'>): Map<string, SpellGrant[]> {
   const m = new Map<string, SpellGrant[]>()
   for (const g of b.spells) {
-    if (!g.spellId || g.mode === 'expanded') continue
+    if (!g.spellId || g.kind === 'expanded') continue
     const list = m.get(g.spellId)
     if (list) list.push(g)
     else m.set(g.spellId, [g])
@@ -400,7 +461,7 @@ export function otherHolders(holders: Map<string, SpellGrant[]>, slot: Pick<Choi
     (g) =>
       g.slotKey !== slot.key &&
       !(g.slotKey && linked.includes(g.slotKey)) &&
-      !(slot.spell?.role === 'prepared' && g.mode === 'spellbook'),
+      !(slot.spell?.role === 'prepared' && g.kind === 'spellbook'),
   )
 }
 
@@ -417,6 +478,6 @@ const ORIGIN_TYPE: Record<Origin['type'], string> = {
 /** 「種族：侏儒」「職業：法师（法術書）」 */
 export function holderLabel(g: SpellGrant): string {
   const name = g.origin.name.replace(/ \d+ 级$/, '')
-  const mode = g.mode === 'spellbook' ? '（法術書）' : ''
+  const mode = g.kind === 'spellbook' ? '（法術書）' : ''
   return `${ORIGIN_TYPE[g.origin.type]}：${name}${mode}`
 }

@@ -801,3 +801,17 @@ DDB 的屬性值提升、傳奇恩惠、法術精通、招牌法術、學者都�
   - `daily` 的鍵除了 `"1"`、`"1e"`、`"pb"`，還有 `"int"`、`"cha"`（各 1 處：次數＝該屬性調整值）。
 - AU 死灵师（`subclass|死灵师|AU|法师|XPHB`）：`known` 3 級＝寻获魔宠（固定）＋2 個 `level=0;1;2|class=法师|school=N`，5、7…17 級各 1 個（上限每次 +1 環）。篩選字串**包含 0 環**，依資料允許選戲法（選了戲法就是免費戲法，不進法術書）。6 級另有 `prepared` 與 `innate.daily` 的活化死尸。
 - 截圖角色的「魔宠密友」是 AU 起源專長 `feat|魔宠密友|AU`：`ability.choose` int/wis/cha，`prepared._.daily.1 = [寻获魔宠]`。
+
+### 23c. M9-2 規則引擎實作（`src/rules/spells/`、`src/rules/build.ts`）
+
+- `SpellGrant.mode`／`uses` 改成 `kind`（M9.md §1.1）＋`free`＋`castModes`。`bonus` kind 沒有用到：§1.2 的對照表已把每種宿主的 `known` 對應到 cantrip／spellbook／known／always，不需要獨立的 bonus。
+- 選擇欄位的 key 改變（M9-3 要寫遷移）：
+  - `additionalSpells` 的選擇：原本每個 `{choose}` 一個欄位 `<前綴>:spells:<序號>`，改為同一特性、同一 kind 合併成一個欄位 `<前綴>:spells:<kind>`（例如 `subclass|死灵师|AU|法师|XPHB:spells:spellbook`、魔法學徒的 `…:spells:cantrip` 與 `…:spells:innate`）。選擇值**位置有意義**（第 i 格的條件在 `spell.slots[i]`，空格為 `''`），放錯格視為未選。
+  - 新增魔契師 `class|魔契师|XPHB:arcanum`（秘法奧義，每格一個環位）。
+  - 法師仍是 `:spellbook`（付費抄寫）＋`:prepared` 兩個欄位，`spell.book` 掛狀態機需要的名額、免費抄寫、永遠準備清單；M9-3 改存檔格式。
+- 「已由其他來源取得」：戲法池子對已有的戲法、已知／準備池子對永遠準備（含 2024 種族專長「也可用法術位」的天生法術、額外已知法術）的選項加 `disabled`；法術書照常可抄。
+- 擴充清單（`expanded`）：職業／子職給的只擴充該職業；種族、專長給的擴充所有施法職業。`{all: "…"}` 篩選字串也支援（XPHB 吟遊詩人魔法奧秘 10 級起 1–5 環、`s6`～`s9` 依可施展環位）。
+- 篩選字串新增支援 `source=EGW`、`components & miscellaneous=仪式`（大小寫不拘）、`spell attack=m;r;o`。原本這三種會被忽略（等於不限）。
+- `inherit` 施法屬性：取同一個專長所選的屬性加值（原本誤用職業的施法屬性）。
+- 法術列（`spellRows`）同一道法術合併成一列，`grants` 依「準備＞永遠準備＞已知＞秘法奧義＞戲法＞天生＞法術書」排序，`variants` 列出各來源的 DC／攻擊加值／次數。豁免型法術的顯示改為「体质豁免 DC 17」。
+- 資料發現：XPHB 法術的 `classes` 沒有 EFA 奇械師（例如 XPHB 修复术），奇械師清單裡出現的是 PHB 版（`classSource: TCE`）。既有行為，M9 不處理。

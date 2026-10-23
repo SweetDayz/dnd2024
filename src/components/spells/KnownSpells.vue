@@ -26,7 +26,7 @@ function tags(r: SpellRow): { text: string; cls: string; title?: string }[] {
   // 法術書：只在書裡，或從法術書準備的（準備欄位的候選來自法術書）
   const inBook = r.bookOnly || (role === 'prepared' && !!props.scopes.get(r.grant.slotKey!)?.fromIds)
   if (inBook) out.push({ text: '法術書', cls: 'book' })
-  if (r.level > 0 && r.grant.mode === 'class') out.push({ text: role === 'known' ? '已知' : '已準備', cls: 'prep' })
+  if (r.level > 0 && r.grants.some((g) => g.kind === 'prepared' || g.kind === 'known')) out.push({ text: role === 'known' ? '已知' : '已準備', cls: 'prep' })
   if (r.level > 0 && r.alwaysPrepared) out.push({ text: '永遠準備', cls: 'always' })
   if (r.usesText) out.push({ text: `免費施放 ${r.usesText}`, cls: 'free', title: '不耗法術位的施展次數' })
   if (r.ritual) out.push({ text: '儀式施放', cls: 'ritual', title: inBook ? '法術書內的儀式法術不必準備就能以儀式施展' : '可以儀式施展（多花 10 分鐘，不耗法術位）' })

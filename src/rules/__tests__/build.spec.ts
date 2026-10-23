@@ -51,13 +51,13 @@ describe.skipIf(!hasRealData)('基準角色 1 級（真實資料）', () => {
 
   it('起源專長魔法學徒（牧師）與種族法術', () => {
     expect(b.feats.map((f) => f.entry.id)).toEqual(['feat|魔法学徒；牧师|XPHB'])
-    const spells = b.spells.map((g) => `${g.spellId}:${g.ability}:${g.mode}`)
+    const spells = b.spells.map((g) => `${g.spellId}:${g.ability}:${g.kind}`)
     expect(spells).toEqual(
       expect.arrayContaining([
-        'spell|修复术|XPHB:int:known',
-        'spell|魔法伎俩|XPHB:int:known',
-        'spell|神导术|XPHB:wis:known',
-        'spell|修复术|XPHB:wis:known',
+        'spell|修复术|XPHB:int:cantrip',
+        'spell|魔法伎俩|XPHB:int:cantrip',
+        'spell|神导术|XPHB:wis:cantrip',
+        'spell|修复术|XPHB:wis:cantrip',
         'spell|光导箭|XPHB:wis:innate',
       ]),
     )
