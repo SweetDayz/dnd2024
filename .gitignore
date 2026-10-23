@@ -40,3 +40,6 @@ __screenshots__/
 
 # 從上游抓下來的原始資料（npm run fetch-data 產生）
 raw
+
+# fetch-data 的 git 快取
+.cache
