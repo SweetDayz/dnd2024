@@ -7,6 +7,7 @@
  * - 角色存檔以 `<script type="application/json">` 嵌入：瀏覽器不會執行這種 script，
  *   網站的「匯入」讀到 HTML 檔時會從這裡取出存檔（見 rules/character.ts importCharacter）。
  */
+import { LICENSE_LINE, SOURCE_URLS } from '@/data/credits'
 import { EMBED_ID } from '@/rules/character'
 import type { Badge, Item, ReviewModel, RollLine } from './review'
 
@@ -156,6 +157,7 @@ export function renderReviewHtml(m: ReviewModel): string {
 <main>
 ${body}
 </main>
+<footer class="license">${esc(LICENSE_LINE)}<br>資料來源：${SOURCE_URLS.map((u) => `<a href="${esc(u)}">${esc(u)}</a>`).join('・')}</footer>
 <script type="application/json" id="${EMBED_ID}">${m.characterJson.replace(/</g, '\\u003c')}</script>
 </body>
 </html>
@@ -164,6 +166,8 @@ ${body}
 
 /** 螢幕：深色（與網站一致）；列印：白底黑字、A4 直式 */
 const CSS = `
+footer.license{margin-top:40px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;text-align:center}
+footer.license a{color:var(--muted)}
 :root{--bg:#16181d;--panel:#1f232b;--line:#343a46;--text:#e6e8ec;--muted:#9aa3b2;--accent:#d9a441;--warn:#f0b45a;--bad:#ff7b72;--ok:#7ee0a1;--src-bg:#2b3240;--src:#b8c7e0}
 *{box-sizing:border-box}
 html{background:var(--bg)}

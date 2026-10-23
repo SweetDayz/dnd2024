@@ -12,6 +12,7 @@ import { benchmarkLevel, benchmarkLevel1, withStartingEquipment } from '@/rules/
 import { hasRealData, readRegistered, realData } from '@/rules/__tests__/realData'
 import { buildReviewModel, reviewFileName } from '../review'
 import { SECTION_TITLES, esc, renderReviewHtml } from '../reviewHtml'
+import { LICENSE_LINE, SOURCE_URLS } from '@/data/credits'
 import type { DataMeta } from '../sheetData'
 
 describe('esc／reviewFileName', () => {
@@ -79,9 +80,16 @@ describe.skipIf(!hasRealData)('審卡報告（基準角色 20 級）', () => {
     expect(html).toContain('<script type="application/json" id="dnd2024-character">')
   })
 
-  it('不連網：沒有外部資源', () => {
-    expect(html).not.toMatch(/(src|href)="(https?:)?\/\//)
+  it('不連網：沒有外部資源（只有頁尾兩個資料來源連結，點了才開）', () => {
+    expect(html).not.toMatch(/src="(https?:)?\/\//)
     expect(html).not.toMatch(/@import|url\(/)
+    const hrefs = [...html.matchAll(/href="((https?:)?\/\/[^"]*)"/g)].map((m) => m[1])
+    expect(hrefs).toEqual(SOURCE_URLS)
+  })
+
+  it('頁尾有授權標示與兩個資料來源網址（M7-1，CC BY-NC-SA 要求標示來源）', () => {
+    expect(html).toContain(LICENSE_LINE)
+    for (const u of SOURCE_URLS) expect(html).toContain(u)
   })
 
   it('警示區：未選的 ASI 與傳奇恩惠、法術書未滿', () => {

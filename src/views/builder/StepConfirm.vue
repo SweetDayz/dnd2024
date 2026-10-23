@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import ChoiceSlotView from '@/components/builder/ChoiceSlotView.vue'
 import OriginChip from '@/components/builder/OriginChip.vue'
 import SourceBadge from '@/components/SourceBadge.vue'
+import { KIWEE_URL } from '@/data/credits'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import { ABILITIES, ABILITY_NAME, formatMod } from '@/rules/abilities'
 import { pendingSlots } from '@/rules/build'
@@ -37,6 +38,10 @@ const missing = computed(() => {
         @input="store.update((c) => (c.name = ($event.target as HTMLInputElement).value))"
       />
     </label>
+
+    <p class="muted" data-testid="kiwee-note">
+      如有錯誤項目，請參考頁面 <a :href="KIWEE_URL" target="_blank" rel="noopener">{{ KIWEE_URL }}</a>
+    </p>
 
     <p v-if="missing.length" class="warn">⚠ 尚未選擇：{{ missing.join('、') }}</p>
 
@@ -137,5 +142,8 @@ const missing = computed(() => {
 }
 .muted {
   color: var(--color-text-muted);
+}
+.muted a {
+  color: var(--color-accent);
 }
 </style>

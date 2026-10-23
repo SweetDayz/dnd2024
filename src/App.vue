@@ -1,21 +1,24 @@
 <script setup lang="ts">
-// 最外層：頂部導覽（建立角色／角卡／資料瀏覽）＋角色工具列。
+// 最外層：頂部導覽（建立角色／角卡／資料瀏覽／致謝）＋角色工具列＋底部授權頁尾。
 // 三個畫面用 v-if 切換；目前畫面記在 localStorage，重新開啟時回到原處。
 import { onMounted, ref, watch } from 'vue'
 import CharacterBar from '@/components/CharacterBar.vue'
 import OptionBrowser from '@/components/browser/OptionBrowser.vue'
 import SourceFilterPanel from '@/components/SourceFilterPanel.vue'
+import { LICENSE_LINE } from '@/data/credits'
 import { useCatalogStore } from '@/stores/catalog'
 import { useCharacterStore } from '@/stores/character'
 import BuilderView from '@/views/BuilderView.vue'
+import CreditsView from '@/views/CreditsView.vue'
 import SheetView from '@/views/SheetView.vue'
 
-type View = 'builder' | 'sheet' | 'browser'
+type View = 'builder' | 'sheet' | 'browser' | 'credits'
 const VIEW_KEY = 'dnd2024.view'
 const VIEWS: { id: View; label: string }[] = [
   { id: 'builder', label: '建立角色' },
   { id: 'sheet', label: '角卡' },
   { id: 'browser', label: '資料瀏覽' },
+  { id: 'credits', label: '致謝' },
 ]
 
 const catalog = useCatalogStore()
@@ -66,7 +69,7 @@ onMounted(async () => {
           {{ v.label }}
         </button>
       </nav>
-      <CharacterBar v-if="view !== 'browser'" class="bar" />
+      <CharacterBar v-if="view === 'builder' || view === 'sheet'" class="bar" />
     </header>
     <p v-for="e in catalog.errors" :key="e" class="error" data-testid="load-error">{{ e }}</p>
     <template v-if="view === 'browser'">
@@ -79,8 +82,12 @@ onMounted(async () => {
     </template>
     <main v-else class="main full">
       <BuilderView v-if="view === 'builder'" @done="view = 'sheet'" />
-      <SheetView v-else @edit="view = 'builder'" />
+      <SheetView v-else-if="view === 'sheet'" @edit="view = 'builder'" />
+      <CreditsView v-else />
     </main>
+    <footer class="foot" data-testid="license-footer">
+      {{ LICENSE_LINE }}｜<a href="#" data-testid="credits-link" @click.prevent="view = 'credits'">致謝</a>
+    </footer>
   </div>
 </template>
 
@@ -88,11 +95,12 @@ onMounted(async () => {
 .layout {
   display: grid;
   grid-template-columns: 300px 1fr;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto 1fr auto;
   grid-template-areas:
     'top top'
     'err err'
-    'side main';
+    'side main'
+    'foot foot';
   min-height: 100vh;
 }
 .top {
@@ -143,6 +151,17 @@ h1 {
 }
 .main.full {
   grid-column: 1 / -1;
+}
+.foot {
+  grid-area: foot;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+.foot a {
+  color: var(--color-accent);
 }
 .error {
   grid-area: err;

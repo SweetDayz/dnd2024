@@ -46,12 +46,33 @@ try {
       problems.push(`畫面上找不到「${text}」`)
     }
   }
+  await creditsSmoke(page, problems)
   await builderSmoke(page, problems)
   await interactionSmoke(page, problems)
   // 讓延遲載入的資料檔有機會報錯
   await page.waitForTimeout(300)
 } finally {
   await browser.close()
+}
+
+/**
+ * M7-1：首頁底部有授權頁尾；點「致謝」後有授權文字、使用者的話與上游 commit hash。
+ * @param {import('playwright').Page} page
+ * @param {string[]} problems
+ */
+async function creditsSmoke(page, problems) {
+  try {
+    const foot = await page.getByTestId('license-footer').innerText()
+    if (!foot.includes('中文在地化資料 CC BY-NC-SA 4.0') || !foot.includes('致謝')) problems.push(`首頁底部沒有授權頁尾：${foot}`)
+    const commit = readFileSync(resolve('raw/VERSION'), 'utf8').split(/\r?\n/)[2]
+    await page.getByTestId('credits-link').click()
+    await page.getByTestId('upstream-commit').getByText(commit).waitFor({ timeout: 5000 })
+    const text = await page.getByTestId('credits').innerText()
+    for (const t of ['CC BY-NC-SA 4.0', '人類魔寵', 'MIT License']) if (!text.includes(t)) problems.push(`致謝頁沒有「${t}」`)
+    await page.click('[data-view="builder"]')
+  } catch (err) {
+    problems.push(`致謝頁檢查失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
+  }
 }
 
 /**
@@ -235,6 +256,8 @@ async function builderSmoke(page, problems) {
 
     await page.click('[data-step="confirm"]')
     await page.getByTestId('char-name').fill('基準侏儒法師')
+    const kiwee = await page.getByTestId('kiwee-note').locator('a').getAttribute('href')
+    if (kiwee !== 'https://5e.kiwee.top/index.html') problems.push(`確認步驟沒有 kiwee 網址連結：${kiwee}`)
 
     const hp = await page.getByTestId('hp-max').innerText()
     if (hp.trim() !== '8') problems.push(`建角：1 級 HP 應為 8，畫面為 ${hp}`)
