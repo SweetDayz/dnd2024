@@ -8,6 +8,7 @@ import SpellTable from '@/components/SpellTable.vue'
 import BackgroundTab from '@/components/sheet/BackgroundTab.vue'
 import EffectMark from '@/components/sheet/EffectMark.vue'
 import EffectsTab from '@/components/sheet/EffectsTab.vue'
+import ExportButton from '@/components/sheet/ExportButton.vue'
 import FeaturesTab from '@/components/sheet/FeaturesTab.vue'
 import OverrideValue from '@/components/sheet/OverrideValue.vue'
 import { SHEET_CONTEXT } from '@/components/sheet/context'
@@ -70,8 +71,11 @@ const PROF_MARK = ['○', '●', '◉']
             {{ sheet.level }}
           </p>
         </div>
-        <button v-if="pending" type="button" class="pending" @click="emit('edit')">還有 {{ pending }} 項未選擇 →</button>
-        <button type="button" class="edit" @click="emit('edit')">回到建角</button>
+        <div class="head-actions">
+          <button v-if="pending" type="button" class="pending" @click="emit('edit')">還有 {{ pending }} 項未選擇 →</button>
+          <ExportButton />
+          <button type="button" class="edit" @click="emit('edit')">回到建角</button>
+        </div>
       </header>
 
       <section class="strip">
@@ -228,13 +232,16 @@ h2 {
   font: inherit;
   cursor: pointer;
 }
-.head .pending {
+.head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
   margin-left: auto;
+}
+.head .pending {
   border-color: var(--color-danger);
   color: var(--color-danger);
-}
-.head .edit:first-of-type:last-child {
-  margin-left: auto;
 }
 .strip {
   display: flex;

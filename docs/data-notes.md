@@ -453,3 +453,9 @@ DDB 的屬性值提升、傳奇恩惠、法術精通、招牌法術、學者都�
 輸出為 `dist/vendor/exceljs.min.js`（dev server 也直接提供），
 `src/export/vendor.ts` 在第一次匯出時以 classic `<script>` 載入，取 `window.ExcelJS`。
 `index.html` 大小不變（262.65KB），`dist/` 多 862KB。用 `bare` 版（不含 ES5 polyfill），因為只支援現代瀏覽器。
+
+**M3-2 實作備註**
+- `build-data` 新增輸出 `data/meta.js`（`register('meta', {repo, branch, commit, committedAt, builtAt})`），來源是 `raw/VERSION`；只在匯出時載入。
+- `InventoryItem.attuned?: boolean`（選填，舊存檔視為 false，不升 schemaVersion）。物品欄只有 `reqAttune` 為真的物品顯示同調勾選。
+- 匯出只排版規則引擎的結果（`src/export/sheetData.ts`），entries 以 `src/data/text.ts` 的 `entriesToText` 轉純文字（所有 `{@tag}` 經 `stripTags`）。
+- 摘要表沒有「來源」欄（不是可選項目的清單）；種族、背景的來源在「特性與特質」「背景」表。

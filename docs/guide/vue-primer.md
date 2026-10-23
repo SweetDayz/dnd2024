@@ -420,3 +420,35 @@ src/components/SpellTable.vue、AttackTable.vue、InventoryPanel.vue  建角與�
 src/components/sheet/       角卡分頁（特性、效果、背景）、覆寫數值、效果小圖示
 src/views/SheetView.vue     角卡
 ```
+
+## 10. M3 新出現的概念
+
+### 大型套件按需載入（`vendor/exceljs.min.js`）
+
+ExcelJS 約 860KB。若在程式裡寫 `import ExcelJS from 'exceljs'`，Vite 會把它打包進 bundle，
+而 `vite-plugin-singlefile` 又會把 bundle 全部塞進 `index.html`，每次開網頁都要下載、解析這 860KB，
+即使使用者從來不按「匯出」。改用動態 `import('exceljs')` 也沒用：singlefile 一樣會把它 inline，
+而且 `file://` 下不能載入獨立的 ES module。
+
+所以比照資料檔的做法（§6）：
+
+1. `vite.config.ts` 裡的小外掛 `vendorScripts()`：`npm run build` 時把 `node_modules/exceljs/dist/exceljs.bare.min.js`
+   複製成 `dist/vendor/exceljs.min.js`（`generateBundle` + `emitFile`）；`npm run dev` 時用 `configureServer` 直接回傳同一個檔。
+2. `src/export/vendor.ts` 的 `loadExcelJS()`：第一次按匯出時插入 `<script src="vendor/exceljs.min.js">`，
+   這個 UMD 檔執行後會在 `window.ExcelJS` 掛上函式庫。
+3. 型別：`import type * as ExcelJSNamespace from 'exceljs'` 只拿型別，編譯後整行消失，不會把套件打包進來。
+
+### 依賴注入讓同一份程式在瀏覽器與測試都能跑
+
+`buildWorkbook(ExcelJS, tables)` 不自己 import ExcelJS，而是由呼叫端傳進來：瀏覽器傳 `window.ExcelJS`，
+Vitest 傳 `import ExcelJS from 'exceljs'`。測試因此能「寫出 xlsx → 再讀回來」驗證內容。
+
+### 編譯期常數 `define`
+
+`vite.config.ts` 的 `define: { __APP_VERSION__: JSON.stringify(pkg.version) }` 會在建置時把程式裡的
+`__APP_VERSION__` 直接**文字替換**成 `"0.0.0"`。TypeScript 不認識這個名字，所以在 `env.d.ts` 用 `declare const` 宣告型別。
+
+### 下載檔案（Blob ＋ `<a download>`）
+
+`wb.xlsx.writeBuffer()` 在記憶體裡產生檔案內容 → 包成 `Blob` → `URL.createObjectURL` 產生 `blob:` 網址 →
+建立一個 `<a download="檔名">` 並 `click()`。整個過程沒有網路請求，所以 `file://` 也能用。

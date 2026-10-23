@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import ExcelJS from 'exceljs'
 import { chromium } from 'playwright'
 
 const indexPath = resolve('dist/index.html')
@@ -244,6 +245,27 @@ async function sheetSmoke(page, problems) {
     const exported2 = readFileSync(await download2.path(), 'utf8')
     if (exported2 !== exported) problems.push('匯出再匯入後，再次匯出的 JSON 不同')
     if ((await snapshot()) !== before) problems.push('匯出再匯入後，角卡畫面不同')
+
+    // M3：匯出試算表 → 首次顯示說明（勾「不再顯示」）→ 下載 xlsx → 用 ExcelJS 讀回檢查
+    await page.getByTestId('export-xlsx').click()
+    await page.getByTestId('export-help').waitFor({ timeout: 3000 })
+    await page.getByTestId('export-help-hide').check()
+    const [xlsx] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-confirm').click()])
+    const name = xlsx.suggestedFilename()
+    if (!/^基準侏儒法師_Lv20_\d{4}-\d{2}-\d{2}\.xlsx$/.test(name)) problems.push(`xlsx 檔名不符：${name}`)
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(readFileSync(await xlsx.path()))
+    const sheets = wb.worksheets.map((w) => w.name).join(',')
+    if (sheets !== '摘要,動作,法術,物品,特性與特質,效果,背景,關於') problems.push(`xlsx 工作表不符：${sheets}`)
+    let dc = ''
+    wb.getWorksheet('摘要')?.eachRow((r) => {
+      if (String(r.getCell(2).value).includes('法術豁免 DC')) dc = String(r.getCell(3).value)
+    })
+    if (dc !== '17') problems.push(`xlsx 法術 DC 應為 17，實際 ${dc}`)
+    // 第二次按：不再顯示說明，直接下載
+    const [again] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-xlsx').click()])
+    if (!again.suggestedFilename().endsWith('.xlsx')) problems.push('第二次匯出 xlsx 沒有直接下載')
+    if (await page.getByTestId('export-error').count()) problems.push(`xlsx 匯出錯誤：${await page.getByTestId('export-error').innerText()}`)
   } catch (err) {
     problems.push(`角卡流程失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }

@@ -48,3 +48,13 @@ export function realData(opts: { tceOptional?: boolean; showLegacy?: boolean } =
     sourceEnabled: (s) => enabled.has(s),
   }
 }
+
+/** 讀單一資料檔 register 的內容（sources、meta 這類不是條目清單的檔案） */
+export function readRegistered<T>(file: string): T | undefined {
+  const path = resolve(DIR, `${file}.js`)
+  if (!existsSync(path)) return undefined
+  let data: T | undefined
+  const fake = { __DND__: { register: (_k: string, d: T) => (data = d) } }
+  new Function('window', readFileSync(path, 'utf8'))(fake)
+  return data
+}

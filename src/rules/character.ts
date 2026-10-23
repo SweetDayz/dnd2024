@@ -48,6 +48,8 @@ export interface InventoryItem {
   equipped: boolean
   /** 放在哪裡：身上或背包 */
   container: 'equipment' | 'backpack'
+  /** 已同調（只對需要同調的魔法物品有意義；舊存檔沒有這個欄位，視為 false） */
+  attuned?: boolean
   /** 'start'：由「套用起始裝備」產生（重新套用時會被取代） */
   from?: string
 }

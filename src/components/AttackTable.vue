@@ -3,7 +3,7 @@
 // 建角的裝備步驟與角卡的動作分頁共用。
 import { computed, ref } from 'vue'
 import { useRulesData } from '@/composables/useRulesData'
-import type { AttackRow } from '@/rules/equipment'
+import { standardActions, type AttackRow } from '@/rules/equipment'
 import SourceBadge from './SourceBadge.vue'
 import EntryBlock from './entries/EntryBlock.vue'
 
@@ -13,11 +13,7 @@ const open = ref<string | null>(null)
 const openAction = ref<string | null>(null)
 
 /** 2024 規則的標準動作（資料有就用 XPHB 版） */
-const actions = computed(() => {
-  const all = data.value.list('action').filter((a) => data.value.visible(a))
-  const x = all.filter((a) => a.source === 'XPHB')
-  return x.length ? x : all
-})
+const actions = computed(() => standardActions(data.value))
 </script>
 
 <template>

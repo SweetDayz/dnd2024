@@ -38,8 +38,15 @@ function vendorScripts(): Plugin {
   }
 }
 
+const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8')) as { version: string }
+
 // https://vite.dev/config/
 export default defineConfig({
+  // 編譯期常數：程式裡的 __APP_VERSION__ 會被替換成字串（xlsx「關於」工作表用）
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   // 用相對路徑產生資源連結，dist/ 放在任何資料夾（含 file://、GitHub Pages 子路徑）都能用。
   base: './',
   plugins: [

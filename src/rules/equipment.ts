@@ -407,3 +407,10 @@ export function attackRows(
   }
   return rows
 }
+
+/** 戰鬥中可用的標準動作（取自資料；有 XPHB 版就只用 2024 版） */
+export function standardActions(data: RulesData): Entry[] {
+  const all = data.list('action').filter((a) => data.visible(a))
+  const x = all.filter((a) => a.source === 'XPHB')
+  return x.length ? x : all
+}

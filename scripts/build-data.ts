@@ -79,6 +79,9 @@ let total = writeData(
   'sources',
   sources.filter((s) => SOURCE_WHITELIST.has(s.source)),
 )
+// 上游資料版本（fetch-data 寫的 raw/VERSION：repo、分支、commit、commit 時間），給 xlsx「關於」工作表用
+const [repo = '', branch = '', commit = '', committedAt = ''] = readFileSync(resolve('raw/VERSION'), 'utf8').trim().split(/\r?\n/)
+total += writeData('meta', { repo, branch, commit, committedAt, builtAt: new Date().toISOString() })
 for (const [file, kinds] of Object.entries(DATA_FILES)) {
   const data = Object.fromEntries(kinds.map((k) => [k, dataset[k] ?? []]))
   total += writeData(file, data)

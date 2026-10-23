@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 物品欄：數量、重量、裝備中（護甲與盾牌影響 AC、武器出現在攻擊列）、放身上或背包、金錢、負重。
+// 物品欄：數量、重量、裝備中（護甲與盾牌影響 AC、武器出現在攻擊列）、同調（需要同調的魔法物品）、放身上或背包、金錢、負重。
 // 建角的裝備步驟與角卡的物品分頁共用。
 import { computed, ref } from 'vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
@@ -74,6 +74,7 @@ const isEquippable = (it: unknown) => {
         <thead>
           <tr>
             <th title="裝備中">裝備</th>
+            <th title="已同調（只有需要同調的魔法物品可勾）">同調</th>
             <th>名稱</th>
             <th>數量</th>
             <th>重量</th>
@@ -89,6 +90,16 @@ const isEquippable = (it: unknown) => {
                 type="checkbox"
                 :checked="r.inv.equipped"
                 @change="edit(r.inv.uid, (i) => (i.equipped = ($event.target as HTMLInputElement).checked))"
+              />
+            </td>
+            <td>
+              <input
+                v-if="r.it?.reqAttune"
+                type="checkbox"
+                data-attune
+                :title="typeof r.it.reqAttune === 'string' ? `需同調（${r.it.reqAttune}）` : '需同調'"
+                :checked="!!r.inv.attuned"
+                @change="edit(r.inv.uid, (i) => (i.attuned = ($event.target as HTMLInputElement).checked))"
               />
             </td>
             <td>
