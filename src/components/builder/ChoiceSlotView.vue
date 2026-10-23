@@ -3,6 +3,9 @@
 // 依欄位類型決定外觀：屬性 +2/+1 用下拉選單、少量選項用按鈕、有條目的選項（專長、法術、子職）用可搜尋清單。
 // 選擇直接寫回 character store；規則引擎會重算並產生新的選擇欄位（例如選了專長之後的專長選項）。
 import { computed, ref } from 'vue'
+import { useCharacterBuild } from '@/composables/useCharacterBuild'
+import { formatMod, isAbility } from '@/rules/abilities'
+import { abilityBreakdown, previewBonus } from '@/rules/abilityBreakdown'
 import type { ChoiceOption, ChoiceSlot } from '@/rules/build'
 import { useCharacterStore } from '@/stores/character'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
@@ -73,6 +76,19 @@ const hiddenSelected = computed(() => selectedOptions.value.filter((o) => !shown
 
 const isSelected = (o: ChoiceOption) => props.choice.selected.includes(o.value)
 
+// 屬性加值欄位（背景 +2/+1、專長 +1、ASI）：預覽選了某項之後的值與調整值
+const { store: charStore, build } = useCharacterBuild()
+const isAbilityBonus = computed(() => !!props.choice.weights?.length && /:ability:[wc]$/.test(props.choice.key))
+const breakdown = computed(() =>
+  isAbilityBonus.value && charStore.current && build.value ? abilityBreakdown(charStore.current, build.value) : undefined,
+)
+function preview(value: string, amount: number): string {
+  const line = breakdown.value && isAbility(value) ? breakdown.value.abilities[value] : undefined
+  if (!line) return ''
+  const p = previewBonus(line, amount, props.choice.abilityMax ?? 20)
+  return `${line.score}→${p.score}（${formatMod(line.mod)}→${formatMod(p.mod)}${p.modChanged ? '，調整值改變' : ''}）`
+}
+
 function toggle(o: ChoiceOption) {
   const sel = props.choice.selected.filter(Boolean)
   if (isSelected(o)) store.setChoice(props.choice.key, sel.filter((v) => v !== o.value))
@@ -119,7 +135,7 @@ function blocked(o: ChoiceOption): boolean {
             :value="o.value"
             :disabled="choice.selected.includes(o.value) && choice.selected[i] !== o.value"
           >
-            {{ o.label }}
+            {{ o.label }}<template v-if="breakdown && choice.selected[i] !== o.value">　{{ preview(o.value, w) }}</template>
           </option>
         </select>
       </label>
@@ -187,11 +203,12 @@ function blocked(o: ChoiceOption): boolean {
         class="chip"
         :class="{ sel: isSelected(o) }"
         :disabled="blocked(o)"
-        :title="o.disabled ?? o.note ?? ''"
+        :title="o.disabled ?? o.note ?? (breakdown && !isSelected(o) ? `選這項：${preview(o.value, choice.weights![0]!)}` : '')"
         :data-value="o.value"
         @click="toggle(o)"
       >
         {{ o.label }}<small v-if="o.note && !isSelected(o)" class="chip-note">・{{ o.note }}</small>
+        <small v-if="breakdown && !isSelected(o)" class="pv" data-testid="ability-preview">{{ preview(o.value, choice.weights![0]!) }}</small>
       </button>
     </div>
   </div>
@@ -255,6 +272,14 @@ select,
 .search {
   width: 100%;
   margin-bottom: var(--space-2);
+}
+.pv {
+  display: none;
+  margin-left: var(--space-1);
+  color: var(--color-accent);
+}
+.chip:hover .pv {
+  display: inline;
 }
 .chips {
   display: flex;

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // 建角精靈：左邊是步驟清單（顯示每步還有幾項未選），右邊是目前步驟的內容。
-// 步驟元件用 <component :is> 動態切換。
+// 步驟元件用 <component :is> 動態切換。側欄下方是屬性總覽（每一步都看得到）。
 import { computed, ref, type Component } from 'vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
+import AbilityOverview from '@/components/builder/AbilityOverview.vue'
 import { pendingSlots } from '@/rules/build'
 import StepAbilities from './builder/StepAbilities.vue'
 import StepBackground from './builder/StepBackground.vue'
@@ -48,18 +49,35 @@ function go(d: number) {
 
 <template>
   <div class="builder">
-    <nav class="steps" aria-label="建角步驟">
-      <ol>
-        <li v-for="(s, i) in WIZARD_STEPS" :key="s.id">
-          <button type="button" :class="{ active: s.id === stepId }" :data-step="s.id" @click="stepId = s.id">
-            <span class="no">{{ i + 1 }}</span>{{ s.label }}
-            <span v-if="pendingCount(s.slotStep)" class="pending" :title="`${pendingCount(s.slotStep)} 項未選`">
-              {{ pendingCount(s.slotStep) }}
-            </span>
-          </button>
-        </li>
-      </ol>
-    </nav>
+    <aside class="side">
+      <nav class="steps" aria-label="建角步驟">
+        <ol>
+          <li v-for="(s, i) in WIZARD_STEPS" :key="s.id">
+            <button
+              type="button"
+              :class="{ active: s.id === stepId }"
+              :data-step="s.id"
+              @click="stepId = s.id"
+            >
+              <span class="no">{{ i + 1 }}</span
+              >{{ s.label }}
+              <span
+                v-if="pendingCount(s.slotStep)"
+                class="pending"
+                :title="`${pendingCount(s.slotStep)} 項未選`"
+              >
+                {{ pendingCount(s.slotStep) }}
+              </span>
+            </button>
+          </li>
+        </ol>
+      </nav>
+      <AbilityOverview
+        v-if="store.current && ready"
+        class="overview"
+        @goto="(id: string) => (stepId = id)"
+      />
+    </aside>
     <section class="content">
       <p v-if="!store.current" class="muted">先在上方建立或選擇一個角色。</p>
       <p v-else-if="!ready" class="muted" data-testid="builder-loading">載入資料中…</p>
@@ -68,10 +86,18 @@ function go(d: number) {
         <component :is="COMPONENTS[stepId]" @goto="(id: string) => (stepId = id)" />
         <div class="nav">
           <button v-if="index > 0" type="button" @click="go(-1)">← 上一步</button>
-          <button v-if="index < WIZARD_STEPS.length - 1" type="button" class="next" data-testid="next-step" @click="go(1)">
+          <button
+            v-if="index < WIZARD_STEPS.length - 1"
+            type="button"
+            class="next"
+            data-testid="next-step"
+            @click="go(1)"
+          >
             下一步 →
           </button>
-          <button v-else type="button" class="next" data-testid="to-sheet" @click="emit('done')">前往角卡 →</button>
+          <button v-else type="button" class="next" data-testid="to-sheet" @click="emit('done')">
+            前往角卡 →
+          </button>
         </div>
       </template>
     </section>
@@ -84,12 +110,42 @@ function go(d: number) {
   grid-template-columns: 200px 1fr;
   gap: var(--space-3);
 }
+.side {
+  position: sticky;
+  top: var(--space-2);
+  align-self: start;
+  max-height: calc(100vh - var(--space-4));
+  overflow-y: auto;
+}
 .steps ol {
   margin: 0;
   padding: 0;
   list-style: none;
-  position: sticky;
-  top: var(--space-2);
+}
+/* 窄螢幕：側欄移到上方，步驟橫排、屬性總覽變成橫條並固定在頂端 */
+@media (max-width: 900px) {
+  .builder {
+    grid-template-columns: 1fr;
+  }
+  .side {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+  .steps ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+  .steps button {
+    width: auto;
+  }
+  .overview {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin-top: var(--space-2);
+  }
 }
 .steps button {
   display: flex;

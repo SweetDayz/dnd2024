@@ -472,3 +472,14 @@ Vue 3.4 起用一行巨集代替。
 
 `EntryRow` 整列是一個 `<button>`，裡面的「已有新版」徽章如果也是 `<button>`，HTML 不允許（瀏覽器會把它搬出去）。
 所以 `LegacyBadge` 用 `<span role="button" tabindex="0">`，並自己處理 `@keydown.enter`；`@click.stop` 阻止點擊冒泡到外層那列。
+
+### `watch(來源, (新值, 舊值) => …)`：拿到變動前後的值
+
+`AbilityOverview.vue` 監看六項屬性的 `[值, 調整值]` 陣列，回呼同時拿到新舊兩份，相減就是要顯示的差值（例如 `+2`）。
+差值存在 `flash` 裡並給一個遞增的 `key`：`<span :key="…">` 的 key 一變，Vue 會重建這個元素，CSS 動畫因此重新播放。
+2.5 秒後用 `setTimeout` 清掉；元件卸載時（`onBeforeUnmount`）把計時器全部取消，避免對已消失的元件寫值。
+
+### UI 偏好 vs 角色資料
+
+「屬性總覽收合」是畫面偏好，直接存 `localStorage`（`dnd2024.ui.*`），不放進角色存檔；
+角色存檔只放「選擇」（`src/rules/character.ts`）。這樣匯出的角色 JSON 不會夾帶每個人的介面設定。

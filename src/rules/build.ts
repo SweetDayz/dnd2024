@@ -99,8 +99,10 @@ export interface ChoiceSlot {
   step: Step
   /** 要選幾個 */
   count: number
-  /** abilityWeighted：每個位置的加值，例如 [2, 1] */
+  /** 屬性加值欄位：每個位置（或每個選擇）的加值，例如 abilityWeighted 的 [2, 1]、「選 2 項各 +1」的 [1, 1] */
   weights?: number[]
+  /** 屬性加值欄位：加值的上限（一般 20，傳奇恩惠 30） */
+  abilityMax?: number
   options: ChoiceOption[]
   /** 目前有效的選擇（已去掉不在選項中的舊值） */
   selected: string[]
@@ -562,6 +564,7 @@ function processAbility(ctx: Ctx, list: Json[], prefix: string, origin: Origin, 
           step,
           count: weights.length,
           weights,
+          abilityMax: max,
           options,
         })
         const raw = ctx.out.slots[ctx.out.slots.length - 1]!.selected
@@ -579,6 +582,8 @@ function processAbility(ctx: Ctx, list: Json[], prefix: string, origin: Origin, 
           origin,
           step,
           count,
+          weights: Array<number>(count).fill(amount),
+          abilityMax: max,
           options,
         })
         for (const a of sel) if (isAbility(a)) ctx.out.abilityBonuses.push({ ability: a, amount, origin, max })

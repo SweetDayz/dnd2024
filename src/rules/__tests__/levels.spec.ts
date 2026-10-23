@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildCharacter } from '@/rules/build'
 import { deriveSheet } from '@/rules/derive'
-import { canMulticlass, multiclassRequirement, spellSlots } from '@/rules/multiclass'
+import { canMulticlass, multiclassRequirement, requirementText, spellSlots } from '@/rules/multiclass'
 import { benchmarkLevel, choose, WIZARD } from './benchmark'
 import { hasRealData, realData } from './realData'
 
@@ -62,6 +62,9 @@ describe.skipIf(!hasRealData)('升級（真實資料）', () => {
     const scores = { str: 8, dex: 12, con: 14, int: 16, wis: 15, cha: 10 }
     expect(canMulticlass(fighter, [wizard], scores).ok).toBe(false)
     expect(canMulticlass(fighter, [wizard], { ...scores, dex: 13 }).ok).toBe(true)
+    // 條件文字附上目前的屬性值（M4-4：用即時屬性值顯示前置條件）
+    expect(canMulticlass(fighter, [wizard], scores).reasons).toEqual(['战士需要 力量 13+（目前 8 ✗） 或 敏捷 13+（目前 12 ✗）'])
+    expect(requirementText(multiclassRequirement(wizard), scores)).toBe('智力 13+（目前 16 ✓）')
 
     const c = benchmarkLevel(data, 5)
     c.levels.push({ classId: 'class|圣武士|XPHB', hp: { mode: 'average' } }, { classId: 'class|圣武士|XPHB', hp: { mode: 'average' } })

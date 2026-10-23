@@ -5,7 +5,7 @@
  * 交給 effects.ts 列在效果頁，算不到的由玩家手動覆寫（overrides）。
  */
 import type { Entry } from '../data/types.ts'
-import { ABILITIES, abilityMod, isAbility, proficiencyBonus, type Ability } from './abilities.ts'
+import { ABILITIES, abilityMod, applyAbilityBonuses, isAbility, proficiencyBonus, type Ability } from './abilities.ts'
 import type { Build, Origin, ProfGrant } from './build.ts'
 import type { Character } from './character.ts'
 import { profLabel, skillList, type ProfType, type RulesData } from './data.ts'
@@ -100,11 +100,8 @@ export function abilityScores(
   for (const a of ABILITIES) {
     const base = c.baseScores[a]
     const bonuses = b.abilityBonuses.filter((x) => x.ability === a)
-    let computed = base ?? 10
     // 上限低的先加：一般加值到 20 為止，傳奇恩惠可以再往上到 30
-    for (const x of [...bonuses].sort((p, q) => p.max - q.max)) {
-      if (computed < x.max) computed = Math.min(x.max, computed + x.amount)
-    }
+    const computed = applyAbilityBonuses(base ?? 10, bonuses).total
     const o = c.overrides?.[`ability:${a}`]
     const score = typeof o === 'number' && Number.isFinite(o) ? o : computed
     out[a] = {

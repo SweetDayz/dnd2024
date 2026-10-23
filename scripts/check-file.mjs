@@ -159,11 +159,20 @@ async function builderSmoke(page, problems) {
     const scores = { str: '8', dex: '12', con: '14', int: '15', wis: '13', cha: '10' }
     for (const [a, v] of Object.entries(scores)) await page.locator(`tr[data-ability="${a}"] select`).selectOption(v)
     await chip('background|侍僧|XPHB:ability:alt', '0')
+    // M4-4：屬性總覽顯示「尚有 +3 未分配」，選了之後顯示差值與明細
+    const ov = page.getByTestId('ability-overview')
+    if (!(await ov.getByTestId('ability-pending').first().innerText()).includes('+3')) problems.push('屬性總覽沒有顯示「尚有 +3 未分配」')
     const weighted = slot('background|侍僧|XPHB:ability:w').locator('select')
+    if (!(await weighted.nth(0).locator('option[value="wis"]').innerText()).includes('13→15')) problems.push('背景 +2 的選項沒有預覽 13→15')
     await weighted.nth(0).selectOption('wis')
+    if ((await ov.locator('[data-ability="wis"] [data-testid="ability-delta"]').innerText()).trim() !== '+2') problems.push('屬性總覽沒有顯示感知 +2 的變動')
     await weighted.nth(1).selectOption('int')
+    const wisTip = await ov.locator('li[data-ability="wis"]').getAttribute('title')
+    if (!wisTip?.startsWith('13（標準陣列）＋2 背景：侍僧 = 15')) problems.push(`屬性總覽明細不對：${wisTip}`)
+    if (await ov.getByTestId('ability-pending').count()) problems.push('分配完後仍顯示未分配')
 
     await page.click('[data-step="languages"]')
+    if ((await ov.locator('li[data-ability="int"] .score').innerText()).trim() !== '16') problems.push('其他步驟也要看得到屬性總覽（智力 16）')
     await chip('base:languages', 'dwarvish')
     await chip('base:languages', 'gnomish')
 

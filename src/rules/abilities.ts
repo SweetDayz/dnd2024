@@ -36,6 +36,24 @@ export function pointBuySpent(scores: Partial<Record<Ability, number | null>>): 
   return ABILITIES.reduce((sum, a) => sum + (POINT_BUY_COST[scores[a] ?? 8] ?? 0), 0)
 }
 
+/**
+ * 把屬性加值依序加到基礎值上，回傳最終值與每一筆實際生效的量。
+ * 每筆加值有上限（一般 20，傳奇恩惠 30）：上限低的先加，超過上限的部分不生效。
+ * derive.ts（角卡數值）與 abilityBreakdown（明細）共用，確保兩邊算法一致。
+ */
+export function applyAbilityBonuses(base: number, bonuses: readonly { amount: number; max: number }[]) {
+  const order = bonuses.map((b, i) => ({ b, i })).sort((p, q) => p.b.max - q.b.max)
+  const applied = bonuses.map(() => 0)
+  let total = base
+  for (const { b, i } of order) {
+    if (total >= b.max) continue
+    const next = Math.min(b.max, total + b.amount)
+    applied[i] = next - total
+    total = next
+  }
+  return { total, applied }
+}
+
 /** 4d6 去掉最低一顆。回傳四顆骰子與總和（去最低後）。 */
 export function roll4d6DropLowest(rng?: Rng): { dice: number[]; total: number } {
   const dice = rollDice(4, 6, rng)

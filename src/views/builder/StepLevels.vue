@@ -129,7 +129,7 @@ const pendingAt = (r: { slots: { done: boolean; warnings: string[] }[] }) => r.s
         <span>角色等級 {{ c.levels.length }}：</span>
         <span v-for="ci in build?.classes" :key="ci.entry.id" class="cls">
           {{ ci.entry.name }} {{ ci.level }}<template v-if="ci.subclass">（{{ ci.subclass.name }}）</template>
-          <small class="muted">兼職條件：{{ requirementText(multiclassRequirement(ci.entry)) }}</small>
+          <small class="muted">兼職條件：{{ requirementText(multiclassRequirement(ci.entry), scores) }}</small>
         </span>
         <span v-if="sheet.spellcasting.casterLevel" class="slots" data-testid="spell-slots">
           {{ sheet.spellcasting.multiclass ? `兼職施法者等級 ${sheet.spellcasting.casterLevel}` : '法術位' }}：

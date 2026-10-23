@@ -32,12 +32,17 @@ export function multiclassRequirement(cls: Entry): Req {
   return pa.map((o) => ({ all: Object.fromEntries(Object.keys(o).filter(isAbility).map((k) => [k, 13])) }))
 }
 
-export function requirementText(req: Req): string {
+/** 條件文字；給了目前屬性值就附上「（目前 16 ✓）」，方便一眼看出差多少。 */
+export function requirementText(req: Req, scores?: Record<Ability, number>): string {
   if (!req.length) return '無'
   return req
     .map((alt) =>
       Object.entries(alt.all)
-        .map(([a, v]) => `${ABILITY_NAME[a as Ability].zh} ${v}+`)
+        .map(([a, v]) => {
+          const cur = scores?.[a as Ability]
+          const now = cur === undefined ? '' : `（目前 ${cur} ${cur >= (v ?? 0) ? '✓' : '✗'}）`
+          return `${ABILITY_NAME[a as Ability].zh} ${v}+${now}`
+        })
         .join(' 且 '),
     )
     .join(' 或 ')
@@ -57,7 +62,7 @@ export function canMulticlass(
   const reasons: string[] = []
   for (const cls of [newClass, ...current.filter((c) => c.id !== newClass.id)]) {
     const req = multiclassRequirement(cls)
-    if (!meetsRequirement(req, scores)) reasons.push(`${cls.name}需要 ${requirementText(req)}`)
+    if (!meetsRequirement(req, scores)) reasons.push(`${cls.name}需要 ${requirementText(req, scores)}`)
   }
   return { ok: reasons.length === 0, reasons }
 }
