@@ -4,14 +4,19 @@
 
 ## 1. 目前狀態
 
-- M0、M1、M2（M2a–M2e）全部完成並已 push，最後一個 commit：`6dc45fc fix(M2): 依使用者決定調整…`。
-- 驗收：lint 0、Vitest 108 passed、build 通過、`npm run check:file` 0 errors（file:// 下從零建立 20 級基準角色並對照 DDB 數值、匯出再匯入完全相同）。
-- **M3（匯出 xlsx）已完成**（2026-10-23）：ExcelJS 以 `dist/vendor/exceljs.min.js` 按需載入；`src/export/`（sheetData.ts 排版、xlsx.ts 寫檔、vendor.ts 載入）；角卡頂部「匯出試算表」。M3 完成標準 2（上傳 Google 試算表檢查）由使用者手動做。
-- **M3 暫緩**（輸出品質不足，審卡改由 M6）；匯出鈕保留為灰色「匯出試算表（TODO）」。
-- **M4 完成**（2026-10-23，`/auto M4`）：來源顯示縮寫（`src/data/sourceDisplay.ts`）、通用重印規則（`src/data/visibility.ts`、`RulesData.selectable`／`supersededBy`、`Build.legacyPicks`）、共用選單搜尋修正、屬性總覽（`src/rules/abilityBreakdown.ts`、`AbilityOverview.vue`）、資料稽核（`scripts/audit-data.ts` → `docs/data-audit.md`）與語言修正、角卡版面與技能區（`src/data/skillOrder.ts`）。Vitest 161 passed、`check:file` 0 errors。
-- **M5 完成**（2026-10-23，`/auto M5`）：建置期法術索引（`scripts/lib/spellIndex.ts` → spell 的 `idx`、`origins`）、三態篩選純函式（`src/data/spellFilter.ts`）、`ChoiceSlot.spell`（`SpellScope`）與 `spellScopeReason`／`otherHolders`（`src/rules/spells.ts`）、法術選擇畫面（`src/components/spells/`：分頁、篩選面板、可排序表格、詳情、右側已學會的法術）、UI 偏好 store（`src/stores/spellPrefs.ts`）。Vitest 189 passed、`check:file` 0 errors。
-- **M6 完成**（2026-10-23，`/auto M6`）：審卡報告（`src/export/review.ts` 資料模型、`reviewHtml.ts` 單一 HTML＋列印 CSS、`components/sheet/ReviewReport.vue` 預覽）；報告內嵌存檔，`importCharacter` 可直接吃 HTML；共用 `composables/useExportInput.ts`、`export/download.ts`。Vitest 205 passed、`check:file` 0 errors。
-- **下一步：等規畫者寫 M7 以後的任務檔**，見 `docs/handoff-planner.md`。
+- M0、M1、M2（M2a–M2e）、M4、M5、M6、M7 完成並已 push。
+- **M3 暫緩**（xlsx 輸出品質不足，審卡改由 M6；匯出鈕保留為灰色「匯出試算表（TODO）」）。
+- M4：來源顯示縮寫（`src/data/sourceDisplay.ts`）、通用重印規則（`src/data/visibility.ts`）、屬性總覽、資料稽核（`docs/data-audit.md`）、技能排序。
+- M5：法術選擇畫面（`src/components/spells/`）、建置期法術索引、spellPrefs。
+- M6：審卡報告（`src/export/review.ts`、`reviewHtml.ts`），報告內嵌存檔可直接匯入。
+- **M7**（2026-10-23，`/auto M7`）：
+  - 致謝頁（`src/views/CreditsView.vue`）、全站授權頁尾、審卡報告頁尾，授權文字集中在 `src/data/credits.ts`。
+  - 一般物品判斷 `src/data/items.ts` `isMundaneItem`（`rarity === 'none'`），工具熟練等選項不再混入魔法物品；`ChoiceSlot.stale` 記錄失效的舊選擇並列入審卡警示。
+  - 兼職入口改為「升級」步驟的職業清單（反灰顯示原因）；第二驗收角色法師 3／牧師 2（`src/rules/__tests__/multiclass.spec.ts`、`check:file` 的 `multiclassSmoke`）。
+  - 錢幣計入總重、XPHB 載重門檻與負重條、超重速度至多 5 呎（`Sheet.speedNotes`）。
+  - 通用表格與篩選：`src/data/facetFilter.ts`、`components/filter/FacetFilterPanel.vue`、`components/table/SortableTable.vue`、`stores/tablePrefs.ts`；語言表（`src/data/languageTable.ts`、`components/languages/`）與物品表（`src/data/itemTable.ts`、`components/items/ItemTables.vue`）。
+  - 驗收：Vitest 235 passed、lint 0、build 通過、`check:file` 0 errors。
+- **下一步：等規畫者寫 M8**，現況與建議見 `docs/handoff-planner.md`。
 - 使用者偏好（auto-memory 已有）：`/verify` 通過並 commit 後可直接 `git push`，不用問；force push／改歷史仍要問。
 
 ## 2. 新環境啟動
@@ -44,12 +49,16 @@ src/stores/character.ts               角色清單、localStorage、匯出匯入
 src/views/BuilderView.vue + builder/  建角精靈 11 步（steps.ts 定義）
 src/views/SheetView.vue + components/sheet/  角卡（7 分頁）
 src/rules/__tests__/benchmark.ts      用程式建立基準角色（choose() 每選一次就重 build）；realData.ts 讀 public/data
-scripts/check-file.mjs                file:// 端對端驗收（builderSmoke → sheetSmoke）
+scripts/check-file.mjs                file:// 端對端驗收（creditsSmoke → builderSmoke → sheetSmoke（→ reviewSmoke → overloadSmoke）
+                                      → interactionSmoke → bardToolSmoke → multiclassSmoke）
+src/data/facetFilter.ts               通用三態篩選、排序（法術、語言、物品共用）
+src/components/table/SortableTable.vue、filter/FacetFilterPanel.vue  通用表格、篩選面板
 ```
 
 ## 4. 踩過的坑（照做可省時間）
 
 - **Bash heredoc**：內容含某些字元組合時 bash 會報 `unexpected EOF while looking for matching '`。寫 .vue／多行檔案一律用 Write 工具。
+- **反斜線會被吃掉**：透過 Bash 工具傳的 heredoc／`node -e`／python 字串裡，`\n`、`\r` 有時會變成真的換行，寫進 .mjs／.ts 後語法錯誤。含反斜線的程式碼一律用 Edit／Write 工具改。
 - **用 Python 改檔**：`str.replace` 前先 `assert old in s`。正規式字串用 raw string。Windows 上 Python 會寫出 CRLF，repo 是 `core.autocrlf=true`，commit 時自動轉 LF，可忽略警告。
 - **TS lib 沒有 `Array.prototype.at`**：用 `arr[arr.length - 1]!`。
 - **`noUncheckedIndexedAccess` 開啟**：索引存取要 `!` 或預設值。
@@ -59,9 +68,9 @@ scripts/check-file.mjs                file:// 端對端驗收（builderSmoke →
 - 截圖檢查：`.cache/shot.mjs`（從空角色）、`.cache/shot2.mjs <view> <step> <name> [clicks...]`（從 `.cache/bench.json` 注入 localStorage）。`.cache/` 不進 git。
 - raw/ 的 JSON 很大，禁止整檔 Read；用 scratchpad 下的 node 小腳本抽樣（`load.cjs` 模式：假 `window.__DND__.register` 再 eval public/data/*.js）。
 
-## 5. 待決事項（等使用者回答）
+## 5. 待決事項
 
-見 `docs/data-notes.md` §13：**只有原文、沒有結構化欄位的數值效果**（無甲防禦、警覺先攻、健壯 HP…）。使用者要「新人一來就什麼都算對」，但 CLAUDE.md §6 禁止人工對照表。選項：(a) 從原文自動解析數值句型；(b) 允許少量人工規則。**不要自行決定**。
+已過時，改見 `docs/handoff-planner.md` §2 與 `docs/data-notes.md` §13（M7 新增第 8～10 項）。
 
 ## 6. 已知限制／技術債（M2 範圍內未做或簡化）
 
@@ -77,8 +86,4 @@ scripts/check-file.mjs                file:// 端對端驗收（builderSmoke →
 
 ## 7. 下一步
 
-使用者下指令後才開始 M3（`docs/tasks/M3.md`）：
-- M3-1 要安裝新套件（ExcelJS 或 SheetJS；SheetJS 要從 cdn.sheetjs.com tarball 安裝），任務檔已授權，但仍要在 data-notes 寫比較。
-- 「關於」工作表要上游 commit hash：在 `raw/VERSION`，需要讓 build-data 把它寫進 `sources.js` 之類的輸出。
-- 物品表的「同調」需先擴充 `InventoryItem`（加欄位不必升 schemaVersion，`migrate()` 會補預設值）。
-- 基準角色一律 20 級（法術 DC 17）。
+已過時，改見 `docs/handoff-planner.md`（建議的下一批里程碑）。

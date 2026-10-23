@@ -552,3 +552,53 @@ Vue 掛載後會自動把 DOM 元素放進 `frame.value`。
 `@media print { … }` 裡的規則只在列印（含「另存為 PDF」）時生效，這裡用來把深色換成白底黑字；
 `@page { size: A4 portrait }` 指定紙張；`thead { display: table-header-group }` 讓表頭每頁重複，
 `tr { break-inside: avoid }` 讓一列不會被切在兩頁中間。
+
+## 14. M7 的通用表格與篩選元件
+
+M5 的法術畫面有「可排序表格＋三態篩選面板」，M7 的語言與物品也要同樣的東西。與其複製一份，
+把共用的部分抽出來，法術、語言、物品三個地方都用同一套。分成四層，由下往上：
+
+| 層 | 檔案 | 負責 |
+| --- | --- | --- |
+| 純函式 | `src/data/facetFilter.ts` | 三態標籤比對（`matchGroup`／`matchAll`）、`cycleTag`、全選／清除、`collectTags`、`sortRows`（數字依大小、沒有值排最後）、`nextSort` |
+| 篩選面板 | `src/components/filter/FacetFilterPanel.vue` | 畫出各群組的標籤按鈕、AND／OR、全選／清除／預設；預設 slot 可放「價值範圍」這種非標籤的篩選 |
+| 表格 | `src/components/table/SortableTable.vue` | 欄位標題排序、可選的勾選框欄、點列開詳情；每格內容可用具名 slot 自訂 |
+| 偏好 | `src/stores/tablePrefs.ts`（＋`prefsStorage.ts`） | 每個表格各自記住篩選、排序、面板展開，存在 localStorage |
+
+各功能自己只寫「資料怎麼轉成標籤」：例如 `src/data/languageTable.ts` 定義語言的群組（類型、來源）、
+每列的標籤值（`languageFacets`）與排序欄位；`src/data/itemTable.ts` 同理。
+
+### 泛型元件：`<script setup lang="ts" generic="T, K extends string">`
+
+`SortableTable` 不知道列是什麼型別（法術？語言？物品？），所以宣告成**泛型元件**：
+`T` 是一列的型別、`K` 是欄位 key 的型別。使用時 TypeScript 會從傳入的 `rows`、`columns` 自動推斷，
+所以 `#cell-name="{ row }"` 裡的 `row` 會有正確的型別提示，打錯欄位名稱也會被 `vue-tsc` 抓到。
+這和 Java 的 `class Table<T>` 是同一個概念。
+
+### 用具名 slot 自訂某一格
+
+```vue
+<SortableTable :columns="COLS" :rows="rows" :row-key="(r) => r.key" :sort="sort" @sort="onSort">
+  <template #cell-source="{ row }">
+    <SourceBadge :source="row.entry.source" :page="row.entry.page" />
+  </template>
+</SortableTable>
+```
+
+`SortableTable` 對每一格呼叫 ``<slot :name="`cell-${column.key}`" :row="r">``；父元件有提供這個名字的 slot
+就用父元件的內容，沒有就顯示 `column.text(row)`。slot 內容屬於**父元件**的作用域，所以父元件的 scoped CSS
+套得到 slot 裡的元素，但套不到子元件自己畫的 `<td>`——共用的格式（`nowrap`、`num`）因此放在 `SortableTable` 裡，
+用欄位的 `cls` 指定。
+
+### 子元件的根元素會繼承父元件給的屬性
+
+`<SortableTable data-testid="spell-pick-table" :data-slot="key">`：`SortableTable` 沒有宣告這些 props，
+Vue 會把它們自動加到子元件的根元素（`<table>`）上，而且**父元件給的值會蓋掉子元件根元素原本的同名屬性**。
+所以抽出通用元件後，`check:file` 原本用的 `data-testid="spell-pick-table"` 不用改。
+
+### 新增一種表格的步驟
+
+1. 在 `src/data/` 寫純函式：群組清單、`xxxFacets(row)`、標籤名稱、`filterXxx`、`sortXxx`，並寫 Vitest。
+2. 寫元件：用 `useTablePrefsStore().get(tableId)` 取偏好，把 `FacetFilterPanel` 和 `SortableTable` 接起來
+   （可參考 `components/languages/LanguageTable.vue`，最精簡）。
+3. 在 `check:file` 加上「點某個標籤、檢查剩下的列」「點欄位標題、檢查第一列」這類檢查。
