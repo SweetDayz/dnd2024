@@ -7,7 +7,9 @@
 - M0、M1、M2（M2a–M2e）全部完成並已 push，最後一個 commit：`6dc45fc fix(M2): 依使用者決定調整…`。
 - 驗收：lint 0、Vitest 108 passed、build 通過、`npm run check:file` 0 errors（file:// 下從零建立 20 級基準角色並對照 DDB 數值、匯出再匯入完全相同）。
 - **M3（匯出 xlsx）已完成**（2026-10-23）：ExcelJS 以 `dist/vendor/exceljs.min.js` 按需載入；`src/export/`（sheetData.ts 排版、xlsx.ts 寫檔、vendor.ts 載入）；角卡頂部「匯出試算表」。M3 完成標準 2（上傳 Google 試算表檢查）由使用者手動做。
-- **下一步：M4**（使用者試用發現的主要 bug，任務檔待使用者提供）；之後實作 data-notes §13 的 (a)+(b) 混合方案。
+- **M3 暫緩**（輸出品質不足，審卡改由 M6）；匯出鈕保留為灰色「匯出試算表（TODO）」。
+- **M4 完成**（2026-10-23，`/auto M4`）：來源顯示縮寫（`src/data/sourceDisplay.ts`）、通用重印規則（`src/data/visibility.ts`、`RulesData.selectable`／`supersededBy`、`Build.legacyPicks`）、共用選單搜尋修正、屬性總覽（`src/rules/abilityBreakdown.ts`、`AbilityOverview.vue`）、資料稽核（`scripts/audit-data.ts` → `docs/data-audit.md`）與語言修正、角卡版面與技能區（`src/data/skillOrder.ts`）。Vitest 161 passed、`check:file` 0 errors。
+- **下一步：M5（法術選擇重新設計）或 M6（審卡報告）**，兩者都以 M4 為前置；之後實作 data-notes §13 的 (a)+(b) 混合方案。
 - 使用者偏好（auto-memory 已有）：`/verify` 通過並 commit 後可直接 `git push`，不用問；force push／改歷史仍要問。
 
 ## 2. 新環境啟動
