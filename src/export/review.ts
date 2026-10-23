@@ -30,7 +30,7 @@ export interface Item {
   note?: string
 }
 
-export type WarningKind = '手動覆寫' | '未完成的選擇' | '失效的選擇' | '超過載重' | '稀有語言' | 'TCE 可選規則' | '重印舊版' | '2014 相容規則' | '屬性值'
+export type WarningKind = '手動覆寫' | '未完成的選擇' | '失效的選擇' | '重複專長' | '超過載重' | '稀有語言' | 'TCE 可選規則' | '重印舊版' | '2014 相容規則' | '屬性值'
 
 export interface ReviewWarning {
   kind: WarningKind
@@ -189,6 +189,11 @@ export function buildReviewModel(x: ExportInput): ReviewModel {
       text: `${originText(slot.origin)}・${plain(slot.label)}：存檔中的「${slot.stale.join('、')}」目前不是合法選項，已視為未選擇`,
       src: originBadge(slot.origin),
     })
+  }
+  for (const slot of b.slots) {
+    for (const t of slot.conflicts ?? []) {
+      warn({ kind: '重複專長', text: `${slot.origin.level} 級・${originText(slot.origin)}・${plain(slot.label)}：${t}`, src: originBadge(slot.origin) })
+    }
   }
   // 一般語言選擇裡選了稀有（或其他）語言：2024 規則要 DM 同意
   for (const slot of b.slots) {

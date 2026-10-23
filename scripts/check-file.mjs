@@ -51,6 +51,7 @@ try {
   await interactionSmoke(page, problems)
   await bardToolSmoke(page, problems)
   await multiclassSmoke(page, problems)
+  await featRepeatSmoke(page, problems)
   // 讓延遲載入的資料檔有機會報錯
   await page.waitForTimeout(300)
 } finally {
@@ -182,6 +183,36 @@ async function multiclassSmoke(page, problems) {
     await page.getByTestId('review-close').click()
   } catch (err) {
     problems.push(`兼職流程失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
+  }
+}
+
+/**
+ * M8-1：6 級戰士，4 級選妖精觸碰後，6 級的專長選單中妖精觸碰反灰並附原因。
+ * @param {import('playwright').Page} page
+ * @param {string[]} problems
+ */
+async function featRepeatSmoke(page, problems) {
+  const FTR = 'class|战士|XPHB'
+  const FEY = 'feat|妖精触碰|XPHB'
+  try {
+    await page.click('[data-view="builder"]')
+    await page.getByTestId('new-character').click()
+    await page.click('[data-step="class"]')
+    await page.getByTestId('picker-search').fill('Fighter')
+    await page.click(`[data-id="${FTR}"]`)
+    await page.click('[data-step="levels"]')
+    await page.getByTestId('level-target').fill('6')
+    await page.getByTestId('level-to').click()
+    await page.locator('[data-level="4"] .lv-head').click()
+    await page.locator(`[data-slot="${FTR}:4:asi"] input[data-value="${FEY}"]`).click()
+    await page.locator('[data-level="6"] .lv-head').click()
+    const later = page.locator(`[data-slot="${FTR}:6:asi"] input[data-value="${FEY}"]`)
+    await later.waitFor({ timeout: 5000 })
+    if (!(await later.isDisabled())) problems.push('專長：4 級選了妖精觸碰後，6 級的妖精觸碰應反灰')
+    const row = await page.locator(`[data-slot="${FTR}:6:asi"] li:has(input[data-value="${FEY}"])`).innerText()
+    if (!row.includes('此專長不可重複')) problems.push(`專長：6 級妖精觸碰沒有顯示不可重複的原因：${row.replace(/\s+/g, ' ')}`)
+  } catch (err) {
+    problems.push(`不可重複專長檢查失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }
 }
 

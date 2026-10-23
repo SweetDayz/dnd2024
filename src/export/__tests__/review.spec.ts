@@ -94,7 +94,7 @@ describe.skipIf(!hasRealData)('審卡報告（基準角色 20 級）', () => {
 
   it('警示區：未選的 ASI 與傳奇恩惠、法術書未滿', () => {
     const pending = model.warnings.filter((w) => w.kind === '未完成的選擇').map((w) => w.text)
-    expect(pending.some((t) => t.startsWith('4 級') && t.includes('屬性值提升或通用專長'))).toBe(true)
+    expect(pending.some((t) => t.startsWith('4 級') && t.includes('屬性值提升或其他專長'))).toBe(true)
     expect(pending.some((t) => t.includes('法術書'))).toBe(true)
     expect(model.warnings.some((w) => w.kind === '手動覆寫')).toBe(false)
   })

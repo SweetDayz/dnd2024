@@ -123,6 +123,8 @@ export interface ChoiceSlot {
   /** 已選滿 */
   done: boolean
   warnings: string[]
+  /** 不可重複的專長被重複選取（M8-1）：衝突說明；不自動清除玩家的選擇 */
+  conflicts?: string[]
   /** 存檔裡有、但目前不在選項中的值（書目改了、或像魔法樂器這種後來被排除的選項）；畫面當作未選擇 */
   stale?: string[]
 }
@@ -218,7 +220,8 @@ export interface Build {
   speeds: { mode: string; value: number; origin: Origin }[]
   size: { value: string; origin: Origin } | null
   creatureTypes: string[]
-  feats: { entry: Entry; origin: Origin; key: string }[]
+  /** parent：給予這個專長的來源（背景、職業等級、種族…）；key 以「>專長 id」結尾 */
+  feats: { entry: Entry; origin: Origin; key: string; parent?: Origin }[]
   spells: SpellGrant[]
   classes: ClassInfo[]
   race?: Entry
@@ -863,7 +866,11 @@ export function checkPrerequisite(
       const has = new Set(ctx.out.profs.filter((x) => x.type === 'armor').map((x) => x.value))
       if (scores && armor.length && !armor.every((a) => has.has(a))) ok = false
     }
-    if (Array.isArray(p.feature)) parts.push(`特性：${p.feature.join('、')}`)
+    if (Array.isArray(p.feature)) {
+      parts.push(`特性：${p.feature.join('、')}`)
+      // 例如戰鬥風格專長要有「战斗风格」特性（M8-1：屬性值提升欄位可選所有專長，所以要真的擋）
+      if (scores && !p.feature.some((n: string) => ctx.out.features.some((f) => f.entry.name === n))) ok = false
+    }
     texts.push(parts.join('，'))
     if (ok) anyOk = true
   }
@@ -956,7 +963,7 @@ function processFeat(ctx: Ctx, feat: Entry, key: string, parent: Origin, step: S
     })
     e = (vid && feat.versions.find((v) => v.id === vid)) || feat
   }
-  ctx.out.feats.push({ entry: e, origin: { ...origin, entry: e }, key })
+  ctx.out.feats.push({ entry: e, origin: { ...origin, entry: e }, key, parent })
   const before = ctx.out.slots.length
   processEntity(ctx, e, key, { ...origin, entry: e, name: e.name }, step, parent.level)
   ctx.out.features.push({
@@ -1391,7 +1398,8 @@ function processClasses(ctx: Ctx) {
       const before = out.slots.length
       // 第一次取得子職特性的等級：選子職（之後的等級不會重複產生欄位）
       if (ref.gainSubclassFeature) addSubclassSlot(ctx, cls, info, origin)
-      if (isAsi(f)) addFeatSlot(ctx, `${cls.id}:${L}:asi`, ['G'], 1, origin, 'levels', '屬性值提升或通用專長')
+      // XPHB 原文：「你获得属性值提升专长或其他你满足条件的专长」——不限通用專長（起源專長也可以），由先決條件把關
+      if (isAsi(f)) addFeatSlot(ctx, `${cls.id}:${L}:asi`, null, 1, origin, 'levels', '屬性值提升或其他專長')
       addClassFeature(ctx, f, 'class', origin, out.slots.slice(before).map((s) => s.key))
     }
     // 子職特性
@@ -1633,6 +1641,55 @@ function resolveScoreChecks(ctx: Ctx) {
   }
 }
 
+const ORIGIN_WHERE: Partial<Record<OriginType, string>> = { background: '背景', race: '種族', feat: '專長', subclass: '子職', optionalfeature: '特性' }
+const whereText = (o: Origin) => (o.type === 'class' || o.type === 'rule' ? o.name : `${ORIGIN_WHERE[o.type] ?? ''}：${o.name}`)
+
+/**
+ * 不可重複的專長（M8-1）。2024 規則：專長只能取得一次，除非資料標了 `repeatable`（屬性值提升、魔法學徒、
+ * 熟習、元素掌控…）。所有取得途徑（背景、職業等級、戰鬥風格、史詩恩惠、種族或其他專長給的）一起算：
+ * - 角色已經擁有的不可重複專長，在其他專長欄位裡反灰並附原因；可重複的標「可重複」。
+ * - 已經重複選了（改掉較早的選擇、或舊存檔）：較晚的那次標成衝突（欄位警示＋審卡報告），不自動清除。
+ */
+function resolveFeatDuplicates(ctx: Ctx) {
+  const featSlots = new Map(ctx.out.slots.filter((s) => s.type === 'feat').map((s) => [s.key, s]))
+  const holders = new Map<string, { slotKey?: string; where: string; level: number; order: number }[]>()
+  ctx.out.feats.forEach((f, order) => {
+    const cut = f.key.lastIndexOf('>')
+    // 版本條目（魔法学徒；牧师）算作基礎專長（魔法学徒）
+    const raw = f.key.slice(cut + 1)
+    const baseId = ctx.data.get(raw)?.versionOf ?? raw
+    const slotKey = featSlots.has(f.key.slice(0, cut)) ? f.key.slice(0, cut) : undefined
+    const parent = (slotKey ? featSlots.get(slotKey)!.origin : f.parent) ?? f.origin
+    const list = holders.get(baseId) ?? []
+    list.push({ ...(slotKey ? { slotKey } : {}), where: whereText(parent), level: parent.level, order })
+    holders.set(baseId, list)
+  })
+  const repeatable = (id: string) => !!ctx.data.get(id)?.repeatable
+  for (const s of featSlots.values()) {
+    for (const o of s.options) {
+      if (repeatable(o.value)) {
+        o.note = o.note ? `可重複・${o.note}` : '可重複'
+        continue
+      }
+      const others = (holders.get(o.value) ?? []).filter((h) => h.slotKey !== s.key)
+      if (!others.length) continue
+      if (!s.selected.includes(o.value)) {
+        o.disabled ??= `已在${others[0]!.where}選過，此專長不可重複`
+        continue
+      }
+      // 已選而且重複：只有較晚取得的那次算衝突（固定給予的較晚時，由較早的欄位承擔）
+      const mine = (holders.get(o.value) ?? []).find((h) => h.slotKey === s.key)!
+      const earlier = others.filter((h) => h.level < mine.level || (h.level === mine.level && h.order < mine.order))
+      const laterFixed = others.filter((h) => !h.slotKey && !earlier.includes(h))
+      const against = earlier[0] ?? laterFixed[0]
+      if (!against) continue
+      const text = `衝突：「${o.entry?.name ?? o.value}」已在${against.where}取得，此專長不可重複`
+      s.conflicts = [...(s.conflicts ?? []), text]
+      s.warnings.push(text)
+    }
+  }
+}
+
 /** 專精：選項只能是已熟練的技能（要等所有熟練都收集完才知道）。 */
 function resolveExpertiseOptions(ctx: Ctx) {
   const proficient = new Set(ctx.out.profs.filter((p) => p.type === 'skill').map((p) => p.value))
@@ -1673,6 +1730,7 @@ export function buildCharacter(c: Character, data: RulesData): Build {
   resolveDuplicates(ctx)
   resolveExpertiseOptions(ctx)
   resolveScoreChecks(ctx)
+  resolveFeatDuplicates(ctx)
   resolveLegacyPicks(ctx)
   return out
 }

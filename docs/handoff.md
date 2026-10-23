@@ -16,7 +16,8 @@
   - 錢幣計入總重、XPHB 載重門檻與負重條、超重速度至多 5 呎（`Sheet.speedNotes`）。
   - 通用表格與篩選：`src/data/facetFilter.ts`、`components/filter/FacetFilterPanel.vue`、`components/table/SortableTable.vue`、`stores/tablePrefs.ts`；語言表（`src/data/languageTable.ts`、`components/languages/`）與物品表（`src/data/itemTable.ts`、`components/items/ItemTables.vue`）。
   - 驗收：Vitest 235 passed、lint 0、build 通過、`check:file` 0 errors。
-- **下一步：等規畫者寫 M8**，現況與建議見 `docs/handoff-planner.md`。
+- **M8-1**（2026-10-23）：不可重複的專長（`build.ts` `resolveFeatDuplicates`、`ChoiceSlot.conflicts`、審卡警示「重複專長」），屬性值提升欄位改列全部專長（XPHB 原文）、「特性」先決條件實際檢查。Vitest 240 passed、`check:file` 0 errors（`featRepeatSmoke`）。
+- **下一步：M8-2 起（數值效果自動化）等規畫者補任務檔**，現況與建議見 `docs/handoff-planner.md`。
 - 使用者偏好（auto-memory 已有）：`/verify` 通過並 commit 後可直接 `git push`，不用問；force push／改歷史仍要問。
 
 ## 2. 新環境啟動
