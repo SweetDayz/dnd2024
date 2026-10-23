@@ -79,7 +79,8 @@ export interface AbilityBreakdown {
 /** 屬性加值欄位的 key 結尾：+2/+1 位置、選 N 項、選方式（見 build.ts processAbility） */
 const ABILITY_SLOT = /:ability:(w|c|alt)$/
 
-function sourceText(o: Origin): string {
+/** 來源文字，例如「背景：侍僧」「屬性值提升（ASI）」「背景：侍僧（2014 相容）」。 */
+export function originText(o: Origin): string {
   const asi = o.type === 'feat' && o.entry?.engName === 'Ability Score Improvement'
   const name = asi ? '屬性值提升（ASI）' : `${ORIGIN_LABEL[o.type]}：${o.name}`
   return o.compat ? `${name}（2014 相容）` : name
@@ -98,7 +99,7 @@ export function abilityBreakdown(
       amount: g.amount,
       applied: applied[i]!,
       max: g.max,
-      source: sourceText(g.origin),
+      source: originText(g.origin),
       origin: g.origin,
     }))
     const o = c.overrides?.[`ability:${a}`]

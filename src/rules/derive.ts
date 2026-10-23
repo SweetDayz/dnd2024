@@ -5,7 +5,8 @@
  * 交給 effects.ts 列在效果頁，算不到的由玩家手動覆寫（overrides）。
  */
 import type { Entry } from '../data/types.ts'
-import { ABILITIES, abilityMod, applyAbilityBonuses, isAbility, proficiencyBonus, type Ability } from './abilities.ts'
+import { ABILITIES, ABILITY_NAME, abilityMod, applyAbilityBonuses, isAbility, proficiencyBonus, type Ability } from './abilities.ts'
+import { originText } from './abilityBreakdown.ts'
 import type { Build, Origin, ProfGrant } from './build.ts'
 import type { Character } from './character.ts'
 import { profLabel, skillList, type ProfType, type RulesData } from './data.ts'
@@ -38,7 +39,14 @@ export interface SkillRow {
   /** 0 無、1 熟練、2 專精 */
   prof: 0 | 1 | 2
   mod: number
+  /** 自動計算值（未套用手動覆寫） */
+  computed: number
+  /** 屬性調整值 */
+  abilityMod: number
   sources: Origin[]
+  /** 熟練的來源、專精的來源（hover 明細用） */
+  profSources: Origin[]
+  expertiseSources: Origin[]
   entry?: Entry
 }
 
@@ -116,6 +124,25 @@ export function abilityScores(
   return out
 }
 
+/**
+ * 技能加值的明細文字，例如「感知 −3 ＋熟練 ×2（+12；熟練：職業：法师｜專精：專長：XXX）= +9」。
+ * 有手動覆寫時加註覆寫值。
+ */
+export function skillDetail(row: SkillRow, pb: number): string {
+  const fmt = (n: number) => (n >= 0 ? `+${n}` : `−${-n}`)
+  let text = `${ABILITY_NAME[row.ability].zh} ${fmt(row.abilityMod)}`
+  if (row.prof) {
+    const src = [
+      row.profSources.length ? `熟練：${row.profSources.map(originText).join('、')}` : '',
+      row.expertiseSources.length ? `專精：${row.expertiseSources.map(originText).join('、')}` : '',
+    ].filter(Boolean)
+    text += ` ＋熟練 ×${row.prof}（${fmt(pb * row.prof)}${src.length ? `；${src.join('｜')}` : ''}）`
+  }
+  text += `${row.prof ? '' : ' '}= ${fmt(row.computed)}`
+  if (row.mod !== row.computed) text += `，手動覆寫為 ${fmt(row.mod)}`
+  return text
+}
+
 function groupProfs(data: RulesData, profs: ProfGrant[], type: ProfType): ProfRow[] {
   const m = new Map<string, ProfRow>()
   for (const p of profs) {
@@ -165,14 +192,19 @@ export function deriveSheet(c: Character, b: Build, data: RulesData): Sheet {
     const exp = b.profs.filter((p) => p.type === 'expertise' && p.value === s.key)
     const level: 0 | 1 | 2 = prof.length ? (exp.length ? 2 : 1) : 0
     const ability = (isAbility(s.ability) ? s.ability : 'int') as Ability
+    const computed = mod(ability) + level * pb
     return {
       key: s.key,
       name: s.name,
       engName: s.engName,
       ability,
       prof: level,
-      mod: ov(`skill:${s.key}`, mod(ability) + level * pb),
+      mod: ov(`skill:${s.key}`, computed),
+      computed,
+      abilityMod: mod(ability),
       sources: [...prof, ...exp].map((p) => p.origin),
+      profSources: prof.map((p) => p.origin),
+      expertiseSources: exp.map((p) => p.origin),
       ...(s.entry ? { entry: s.entry } : {}),
     }
   })

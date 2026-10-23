@@ -2,7 +2,7 @@
 // 檢查：console error、未處理的例外／promise rejection、資源載入失敗、
 // 任何非 file:// 的網路請求（執行期不得連網），以及畫面上的關鍵文字。
 // 有任何問題就以非零結束碼退出。
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import ExcelJS from 'exceljs'
@@ -258,6 +258,36 @@ async function sheetSmoke(page, problems) {
       const got = (await page.locator(`[data-attack="${name}"] [data-col="hit"]`).first().innerText()).trim()
       if (got !== want) problems.push(`角卡動作：${name} 應為 ${want}，畫面為 ${got}`)
     }
+    // M4-6：技能排序三種模式、熟練標籤與圖例、加值明細、效果圖示 tooltip
+    const firstSkill = () => page.locator('[data-skill]').first().getAttribute('data-skill')
+    if ((await firstSkill()) !== 'acrobatics') problems.push('技能預設（Roll20）應從特技 Acrobatics 開始')
+    await page.getByTestId('skill-sort').selectOption('fvtt')
+    if ((await firstSkill()) !== 'sleight of hand') problems.push('技能 FVTT 排序應從巧手開始')
+    await page.getByTestId('skill-sort').selectOption('ability')
+    if ((await page.locator('[data-skill-group]').count()) !== 5) problems.push('技能依屬性分組應有 5 組（體質沒有技能）')
+    await page.getByTestId('skill-sort').selectOption('roll20')
+    if (!(await page.locator('[data-skill="arcana"] [data-prof]').innerText()).includes('熟練')) problems.push('奧秘應標示「熟練」')
+    if (!(await page.getByTestId('prof-legend').innerText()).includes('專精')) problems.push('技能區沒有常駐圖例')
+    const arcanaTip = await page.locator('[data-skill="arcana"] [data-testid="skill-detail"]').getAttribute('title')
+    if (!arcanaTip?.startsWith('智力 +3 ＋熟練 ×1（+6；熟練：職業：法师')) problems.push(`奧秘加值明細不對：${arcanaTip}`)
+    const markTip = await page.locator('[data-save="int"] [data-effect="save:int"]').getAttribute('title')
+    if (!markTip?.startsWith('有 ')) problems.push(`效果圖示 tooltip 不對：${markTip}`)
+
+    // M4-6：1280／1440／1920 寬度不可出現水平捲軸，各截一張圖
+    mkdirSync('test-results', { recursive: true })
+    for (const width of [1280, 1440, 1920]) {
+      await page.setViewportSize({ width, height: 900 })
+      for (const t of ['actions', 'spells', 'inventory']) {
+        await page.click(`[data-tab-sheet="${t}"]`)
+        await page.waitForTimeout(100)
+        const [sw, cw] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth])
+        if (sw > cw) problems.push(`角卡 ${width}px（${t}）出現水平捲軸：scrollWidth ${sw} > ${cw}`)
+      }
+      await page.click('[data-tab-sheet="actions"]')
+      await page.screenshot({ path: `test-results/sheet-${width}.png`, fullPage: true })
+    }
+    await page.setViewportSize({ width: 1280, height: 720 })
+
     // 手動覆寫 AC → 顯示「已覆寫」，清空後恢復
     const ac = page.locator('[data-override="ac"]')
     await ac.locator('button.edit').click()

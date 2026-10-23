@@ -483,3 +483,9 @@ Vue 3.4 起用一行巨集代替。
 
 「屬性總覽收合」是畫面偏好，直接存 `localStorage`（`dnd2024.ui.*`），不放進角色存檔；
 角色存檔只放「選擇」（`src/rules/character.ts`）。這樣匯出的角色 JSON 不會夾帶每個人的介面設定。
+
+### CSS Grid 的 `minmax(0, 1fr)`：避免內容把欄位撐破
+
+角卡的分頁欄原本是 `1fr`，而 `1fr` 的最小寬度是「內容的最小寬度」：表格或長字串太寬時，欄位會被撐開、整頁出現水平捲軸。
+改成 `minmax(0, 1fr)` 後欄位可以縮到 0，寬表格改由 `.panel { overflow-x: auto }` 自己捲動。
+`npm run check:file` 會在 1280／1440／1920 寬度檢查 `scrollWidth <= clientWidth`，截圖存到 `test-results/`。

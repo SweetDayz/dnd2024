@@ -7,7 +7,9 @@ import { SHEET_CONTEXT } from './context'
 const props = defineProps<{ field: string }>()
 const ctx = inject(SHEET_CONTEXT)
 const list = computed(() => (ctx ? effectsFor(ctx.effects.value, props.field) : []))
-const title = computed(() => list.value.map((e) => `${e.title}：${e.text.slice(0, 60)}`).join('\n'))
+const title = computed(() =>
+  [`有 ${list.value.length} 條效果可能影響此項，點擊查看`, ...list.value.map((e) => `・${e.title}：${e.text.slice(0, 60)}`)].join('\n'),
+)
 </script>
 
 <template>

@@ -3,7 +3,7 @@ import { abilityBreakdown, previewBonus } from '@/rules/abilityBreakdown'
 import { applyAbilityBonuses } from '@/rules/abilities'
 import { buildCharacter, type AbilityGrant, type Build, type ChoiceSlot, type Origin } from '@/rules/build'
 import { emptyScores } from '@/rules/character'
-import { abilityScores } from '@/rules/derive'
+import { abilityScores, deriveSheet, skillDetail } from '@/rules/derive'
 import { ACOLYTE, benchmarkLevel, benchmarkLevel1 } from './benchmark'
 import { hasRealData, realData } from './realData'
 
@@ -99,5 +99,17 @@ describe.skipIf(!hasRealData)('abilityBreakdown：基準角色', () => {
     const c = benchmarkLevel(data, 20)
     const r = abilityBreakdown(c, buildCharacter(c, data))
     expect(r.abilities.int.score).toBe(16)
+  })
+})
+
+describe.skipIf(!hasRealData)('技能加值明細（M4-6）', () => {
+  it('基準角色：奧秘（熟練）、宗教（熟練，來自背景）、運動（無熟練）', () => {
+    const data = realData()
+    const c = benchmarkLevel1(data)
+    const sheet = deriveSheet(c, buildCharacter(c, data), data)
+    const row = (k: string) => sheet.skills.find((s) => s.key === k)!
+    expect(skillDetail(row('arcana'), sheet.profBonus)).toBe('智力 +3 ＋熟練 ×1（+2；熟練：職業：法师（起始職業））= +5')
+    expect(skillDetail(row('religion'), sheet.profBonus)).toBe('智力 +3 ＋熟練 ×1（+2；熟練：背景：侍僧）= +5')
+    expect(skillDetail(row('athletics'), sheet.profBonus)).toBe('力量 −1 = −1')
   })
 })

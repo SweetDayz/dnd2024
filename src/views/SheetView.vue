@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 角卡（深色、仿 DDB 版面）：頂部摘要、六屬性與豁免、技能，右側分頁（動作、法術、物品、特性與特質、背景、筆記、效果）。
 // 所有數字都由規則引擎即時計算；✎ 可手動覆寫（標示「已覆寫」）；✦ 表示有相關效果段落，點擊跳到效果頁。
-import { computed, provide, ref } from 'vue'
+import { computed, provide, ref, watch } from 'vue'
 import AttackTable from '@/components/AttackTable.vue'
 import InventoryPanel from '@/components/InventoryPanel.vue'
 import SpellTable from '@/components/SpellTable.vue'
@@ -16,6 +16,8 @@ import OriginChip from '@/components/builder/OriginChip.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import { ABILITIES, ABILITY_NAME, formatMod } from '@/rules/abilities'
 import { pendingSlots, sizeLabel } from '@/rules/build'
+import { SKILL_SORT_LABEL, sortSkills, type SkillSortMode } from '@/data/skillOrder'
+import { skillDetail } from '@/rules/derive'
 import { detectEffects } from '@/rules/effects'
 
 const emit = defineEmits<{ edit: [] }>()
@@ -55,7 +57,30 @@ const otherSpeeds = computed(() => sheet.value?.speeds.filter((s) => s.mode !== 
 const SPEED: Record<string, string> = { fly: '飛行', swim: '游泳', climb: '攀爬', burrow: '掘穴' }
 const SENSE: Record<string, string> = { darkvision: '黑暗視覺', blindsight: '盲視', tremorsense: '震顫感知', truesight: '真實視覺' }
 const DEF: Record<string, string> = { resist: '抗性', immune: '免疫', vulnerable: '易傷', conditionImmune: '狀態免疫' }
-const PROF_MARK = ['○', '●', '◉']
+
+// 技能排序：UI 偏好，存在 localStorage，不進角色存檔
+const SORT_KEY = 'dnd2024.ui.skillSort'
+const SORT_MODES = Object.keys(SKILL_SORT_LABEL) as SkillSortMode[]
+function loadSort(): SkillSortMode {
+  try {
+    const v = localStorage.getItem(SORT_KEY)
+    return SORT_MODES.includes(v as SkillSortMode) ? (v as SkillSortMode) : 'roll20'
+  } catch {
+    return 'roll20'
+  }
+}
+const skillSort = ref<SkillSortMode>(loadSort())
+watch(skillSort, (v) => {
+  try {
+    localStorage.setItem(SORT_KEY, v)
+  } catch {
+    // 存不了就只在這次有效
+  }
+})
+const skillGroups = computed(() => (sheet.value ? sortSkills(sheet.value.skills, skillSort.value) : []))
+
+/** 熟練程度的文字標籤（不只靠符號區分）：— 無、熟練、專精 */
+const PROF_LABEL = ['—', '熟練', '專精'] as const
 </script>
 
 <template>
@@ -159,17 +184,31 @@ const PROF_MARK = ['○', '●', '◉']
         </aside>
 
         <section class="col skills box">
-          <h4>技能</h4>
-          <ul class="rows">
-            <li v-for="s in sheet.skills" :key="s.key" :data-skill="s.key" :title="s.sources.map((o) => o.name).join('、')">
-              <span class="dot">{{ PROF_MARK[s.prof] }}</span>
-              <span class="ab">{{ ABILITY_NAME[s.ability].abbr }}</span>
-              <span class="label">{{ s.name }} <small class="muted">{{ s.engName }}</small></span>
-              <OverrideValue :k="`skill:${s.key}`" :value="s.mod" signed />
-              <EffectMark :field="`skill:${s.key}`" />
-            </li>
-          </ul>
-          <p class="muted legend">○ 無　● 熟練　◉ 專精</p>
+          <div class="skills-head">
+            <h4>技能</h4>
+            <select v-model="skillSort" class="sort" data-testid="skill-sort" title="技能排序（只影響畫面，記在這台電腦）">
+              <option v-for="m in SORT_MODES" :key="m" :value="m">{{ SKILL_SORT_LABEL[m] }}</option>
+            </select>
+          </div>
+          <template v-for="g in skillGroups" :key="g.ability ?? 'all'">
+            <h5 v-if="g.ability" class="group" :data-skill-group="g.ability">{{ ABILITY_NAME[g.ability].zh }}</h5>
+            <ul class="rows">
+              <li v-for="s in g.skills" :key="s.key" :data-skill="s.key">
+                <span class="pf" :class="`p${s.prof}`" :data-prof="s.prof">{{ PROF_LABEL[s.prof] }}</span>
+                <span v-if="!g.ability" class="ab">{{ ABILITY_NAME[s.ability].abbr }}</span>
+                <span class="label">{{ s.name }} <small class="muted">{{ s.engName }}</small></span>
+                <span class="val" :title="skillDetail(s, sheet.profBonus)" data-testid="skill-detail">
+                  <OverrideValue :k="`skill:${s.key}`" :value="s.mod" signed />
+                </span>
+                <EffectMark :field="`skill:${s.key}`" />
+              </li>
+            </ul>
+          </template>
+          <p class="legend" data-testid="prof-legend">
+            <span class="pf p0">—</span> 無熟練
+            <span class="pf p1">熟練</span> 加熟練加值
+            <span class="pf p2">專精</span> 加兩倍熟練加值
+          </p>
         </section>
 
         <main class="tabs">
@@ -212,8 +251,12 @@ const PROF_MARK = ['○', '●', '◉']
 <style scoped>
 .head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+}
+.head > div:first-child {
+  min-width: 0;
 }
 h2 {
   margin: 0;
@@ -272,9 +315,23 @@ h2 {
 }
 .grid {
   display: grid;
-  grid-template-columns: 260px 260px 1fr;
+  /* minmax(0, 1fr)：分頁欄的最小寬度不被內容（寬表格、長字串）撐開，避免出現水平捲軸 */
+  grid-template-columns: 260px 280px minmax(0, 1fr);
   gap: var(--space-3);
   align-items: start;
+}
+/* 較窄的桌機：技能移到左欄（屬性、豁免下方），分頁欄更寬 */
+@media (max-width: 1180px) {
+  .grid {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+  .grid > .skills {
+    grid-column: 1;
+  }
+  .grid > .tabs {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
 }
 .col {
   display: flex;
@@ -342,12 +399,70 @@ h4 {
   color: var(--color-accent);
   width: 1em;
 }
+.skills-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+.skills-head h4 {
+  margin: 0;
+}
+.sort {
+  max-width: 150px;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: inherit;
+  font-size: 0.75rem;
+}
+.group {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+/* 熟練程度：文字＋不同形狀與顏色，不只靠 ○●◉ 區分 */
+.pf {
+  flex: none;
+  display: inline-block;
+  min-width: 2.6em;
+  padding: 0 4px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  text-align: center;
+}
+.pf.p0 {
+  color: var(--color-text-muted);
+}
+.pf.p1 {
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+.pf.p2 {
+  border: 1px solid var(--color-tce);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-tce) 25%, transparent);
+  color: var(--color-tce);
+  font-weight: bold;
+}
+.val {
+  cursor: help;
+}
 .ab {
   font-size: 0.7rem;
   color: var(--color-text-muted);
   width: 2.5em;
 }
 .legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
   font-size: 0.75rem;
 }
 .tabs nav {
@@ -372,6 +487,7 @@ h4 {
 .panel {
   padding: var(--space-2) 0;
   min-width: 0;
+  overflow-x: auto;
 }
 .notes {
   width: 100%;
