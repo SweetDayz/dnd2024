@@ -67,6 +67,14 @@ export function filterText(filter: string | undefined): string {
   return `${list}${what}`
 }
 
+/** 2014 奧法騎士、詭術師這類三分之一施法子職：學派限制只寫在原文裡（M9.md §1.6），只提示不驗證 */
+function legacySchoolHint(slot: SpellSlotChoice): string {
+  const e = slot.origin.entry
+  return slot.origin.type === 'subclass' && e?.edition === '2014' && e.casterProgression === '1/3'
+    ? '（2014 版的學派限制只寫在原文裡，本站不檢查，請依特性原文選擇。）'
+    : ''
+}
+
 function ruleText(slot: SpellSlotChoice, book?: SpellbookInfo): string {
   const sc = slot.spell
   const list = sc.classList ? `${sc.classList}清單` : ''
@@ -87,11 +95,11 @@ function ruleText(slot: SpellSlotChoice, book?: SpellbookInfo): string {
             : '法術'
   switch (sc.kind) {
     case 'cantrip':
-      return sc.role === 'cantrips' ? `從${list}選戲法。戲法依角色總等級升階。` : `從${from}選，直接學會${sc.free ? '，不占職業戲法數' : ''}。`
+      return sc.role === 'cantrips' ? `從${list}選戲法。戲法依角色總等級升階。${legacySchoolHint(slot)}` : `從${from}選，直接學會${sc.free ? '，不占職業戲法數' : ''}。`
     case 'spellbook':
       return `從${from}選，免費加入法術書，不占法術書名額。之後仍需要準備才能施放。`
     case 'known':
-      return sc.free ? `從${from}選，成為額外的已知法術，不占已知法術數。` : `從${list}選 1–${sc.maxLevel} 環法術成為已知法術（升級時可替換一個）。`
+      return sc.free ? `從${from}選，成為額外的已知法術，不占已知法術數。` : `從${list}選 1–${sc.maxLevel} 環法術成為已知法術（升級時可替換一個）。${legacySchoolHint(slot)}`
     case 'prepared':
       return `從${list}選 1–${sc.maxLevel} 環法術準備。${slot.label.includes('升級時') ? '升級時可替換一個。' : '長休後可全部重選。'}`
     case 'always':

@@ -202,3 +202,16 @@ describe.skipIf(!hasRealData)('M9-2 驗收：基準角色與兼職', () => {
     expect(buildCharacter(c, data).slots.find((s) => s.key === arc.key)!.selected).toEqual(['', '', ''])
   })
 })
+
+describe.skipIf(!hasRealData)('2014 奧法騎士：學派限制只提示（M9.md §1.6）', () => {
+  it('已知法術池子的規則文字附上「本站不檢查」提示', () => {
+    const data = realData({ showLegacy: true })
+    const c = newCharacter('2026-01-01T00:00:00.000Z')
+    c.levels = [...Array(3)].map(() => ({ classId: 'class|战士|PHB', hp: { mode: 'average' as const } }))
+    c.baseScores = { str: 15, dex: 13, con: 14, int: 12, wis: 10, cha: 8 }
+    choose(c, data, (s) => s.key === 'class|战士|PHB:subclass', ['subclass|奥法骑士|PHB|战士|PHB'])
+    const pools = buildSpellPools(buildCharacter(c, data)).flatMap((g) => g.pools)
+    const known = pools.find((p) => p.kind === 'known')!
+    expect(known.rule).toContain('2014 版的學派限制只寫在原文裡，本站不檢查')
+  })
+})
