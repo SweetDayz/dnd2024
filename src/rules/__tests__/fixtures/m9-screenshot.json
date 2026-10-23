@@ -1,0 +1,111 @@
+{
+  "format": "dnd2024-character",
+  "schemaVersion": 1,
+  "character": {
+    "schemaVersion": 1,
+    "id": "cmvl7ucnq12n32",
+    "name": "M9 截圖角色",
+    "raceId": "race|人类|XPHB",
+    "backgroundId": "background|贤者|XPHB",
+    "levels": [
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|法师|XPHB",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|奇械师|EFA",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|奇械师|EFA",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|奇械师|EFA",
+        "hp": {
+          "mode": "average"
+        }
+      },
+      {
+        "classId": "class|奇械师|EFA",
+        "hp": {
+          "mode": "average"
+        }
+      }
+    ],
+    "abilityMethod": "standard",
+    "baseScores": {
+      "str": 8,
+      "dex": 14,
+      "con": 13,
+      "int": 15,
+      "wis": 12,
+      "cha": 10
+    },
+    "rolledPool": [],
+    "choices": {
+      "class|法师|XPHB:subclass": [
+        "subclass|死灵师|AU|法师|XPHB"
+      ],
+      "class|奇械师|EFA:subclass": [
+        "subclass|炼金师|EFA|奇械师|EFA"
+      ],
+      "race|人类|XPHB:feat:0": [
+        "feat|魔宠密友|AU"
+      ],
+      "race|人类|XPHB:feat:0>feat|魔宠密友|AU:spells:ability": [
+        "int"
+      ]
+    },
+    "inventory": [],
+    "currency": {
+      "cp": 0,
+      "sp": 0,
+      "ep": 0,
+      "gp": 0,
+      "pp": 0
+    },
+    "overrides": {},
+    "details": {},
+    "notes": "",
+    "rollLog": [],
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  }
+}

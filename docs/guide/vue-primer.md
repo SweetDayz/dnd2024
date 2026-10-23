@@ -603,7 +603,7 @@ Vue 會把它們自動加到子元件的根元素（`<table>`）上，而且**�
    （可參考 `components/languages/LanguageTable.vue`，最精簡）。
 3. 在 `check:file` 加上「點某個標籤、檢查剩下的列」「點欄位標題、檢查第一列」這類檢查。
 
-## M9：法術選擇重整用到的技巧
+## 15. M9 法術選擇重整用到的技巧
 
 ### 具名 slot 帶參數（scoped slot）自訂表格的一欄
 

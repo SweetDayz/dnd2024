@@ -53,10 +53,137 @@ try {
   await multiclassSmoke(page, problems)
   await featRepeatSmoke(page, problems)
   await manualAbilitySmoke(page, problems)
+  await spellLayoutSmoke(browser, problems)
   // 讓延遲載入的資料檔有機會報錯
   await page.waitForTimeout(300)
 } finally {
   await browser.close()
+}
+
+/**
+ * M9-6：法術步驟的版面（1366×768 與 1920×1080 各測一次），用截圖角色（法師 6 死灵师／奇械師 4）。
+ *   - 只有一條主捲軸，表格內沒有捲軸（右欄是唯一允許的次要捲動區）
+ *   - 捲到清單最下面時表頭仍然可見
+ *   - 祈願術（XPHB）的詳情：最後一段在詳情欄內看得到，頁面沒有水平捲軸
+ *   - 內含表格的法術：表格完整顯示
+ *   - 同一列點控制項兩下：依序出現在右側「僅在法術書」與已準備
+ *   - 施法總覽：法術位 4/3/3/2；寻获魔宠只占一列、兩個來源
+ * @param {import('playwright').Browser} browser
+ * @param {string[]} problems
+ */
+async function spellLayoutSmoke(browser, problems) {
+  const W = 'class|法师|XPHB'
+  for (const [w, h] of [
+    [1366, 768],
+    [1920, 1080],
+  ]) {
+    const tag = `法術版面 ${w}×${h}`
+    const page = await browser.newPage({ viewport: { width: w, height: h } })
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') problems.push(`${tag} console error: ${msg.text()}`)
+    })
+    page.on('pageerror', (err) => problems.push(`${tag} pageerror: ${err.message}`))
+    try {
+      await page.goto(url, { waitUntil: 'load' })
+      await page.click('[data-view="builder"]')
+      page.once('dialog', (d) => d.accept().catch(() => {}))
+      await page.getByTestId('import-file').setInputFiles(resolve('src/rules/__tests__/fixtures/m9-screenshot.json'))
+      await page.getByTestId('bar-message').getByText('已匯入').waitFor({ timeout: 5000 })
+      await page.click('[data-step="spells"]')
+      await page.click(`[data-pool="${W}:spellbook"]`)
+
+      const slotRow = (await page.getByTestId('spell-slot-row').innerText()).replace(/\s+/g, ' ')
+      if (!slotRow.includes('施法者等級 8') || !/1環 4.*2環 3.*3環 3.*4環 2/.test(slotRow)) problems.push(`${tag}：法術位應為施法者等級 8、4/3/3/2，畫面為 ${slotRow}`)
+      const fam = page.getByTestId('known-spells').locator('[data-spell="寻获魔宠"]')
+      if ((await fam.count()) !== 1) problems.push(`${tag}：寻获魔宠應只占一列，實際 ${await fam.count()} 列`)
+      else {
+        const t = await fam.innerText()
+        if (!t.includes('魔宠密友') || !t.includes('死灵师')) problems.push(`${tag}：寻获魔宠應顯示魔宠密友與死灵师兩個來源：${t}`)
+      }
+
+      // 打開「顯示不符合的法術」：清單變長（含 4 環以上的祈願術、困惑術）
+      await page.getByTestId('spell-show-blocked').check()
+      const scrollers = async () =>
+        page.evaluate(() => {
+          const bad = []
+          for (const el of document.querySelectorAll('body *')) {
+            const cs = getComputedStyle(el)
+            if (!['auto', 'scroll'].includes(cs.overflowY) && !['auto', 'scroll'].includes(cs.overflowX)) continue
+            if (el.closest('[data-testid="spell-side"]')) continue
+            if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) bad.push(String(el.className || el.tagName))
+          }
+          return { bad, hscroll: document.documentElement.scrollWidth > innerWidth, vscroll: document.documentElement.scrollHeight > innerHeight }
+        })
+      let s = await scrollers()
+      if (s.bad.length) problems.push(`${tag}：除了右欄以外不應有內部捲軸：${s.bad.join('、')}`)
+      if (s.hscroll) problems.push(`${tag}：頁面不應有水平捲軸`)
+      if (!s.vscroll) problems.push(`${tag}：長清單應該整頁捲動`)
+
+      // 捲到清單最下面：表頭仍然可見
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+      await page.waitForTimeout(100)
+      const head = await page.locator('[data-testid="spell-pick-table"] thead th').first().boundingBox()
+      if (!head || head.y < -1 || head.y > h) problems.push(`${tag}：捲到最下面時表頭應可見（y=${head?.y}）`)
+
+      // 祈願術詳情：最後一段看得到
+      const openDetail = async (id) => {
+        await page.locator(`[data-open="${id}"]`).scrollIntoViewIfNeeded()
+        await page.locator(`[data-open="${id}"]`).click()
+        await page.locator(`[data-testid="spell-detail"][data-spell-id="${id}"]`).waitFor({ timeout: 3000 })
+      }
+      await openDetail('spell|祈愿术|XPHB')
+      const last = await page.evaluate(() => {
+        const side = document.querySelector('[data-testid="spell-side"]')
+        const blocks = side.querySelectorAll('[data-testid="spell-detail"] p, [data-testid="spell-detail"] li')
+        const lastP = blocks[blocks.length - 1]
+        lastP.scrollIntoView({ block: 'end' })
+        const r = lastP.getBoundingClientRect()
+        const sr = side.getBoundingClientRect()
+        return { inside: r.bottom <= sr.bottom + 1 && r.top >= sr.top - 1 && r.bottom <= innerHeight + 1, hscroll: document.documentElement.scrollWidth > innerWidth }
+      })
+      if (!last.inside) problems.push(`${tag}：祈願術詳情的最後一段應在詳情欄內看得到`)
+      if (last.hscroll) problems.push(`${tag}：開啟祈願術詳情後頁面不應有水平捲軸`)
+      await page.keyboard.press('Escape')
+      if (await page.getByTestId('spell-detail').count()) problems.push(`${tag}：按 Esc 應返回已學會`)
+
+      // 內含表格的法術：表格完整顯示（不被裁切）
+      await openDetail('spell|困惑术|XPHB')
+      const tbl = await page.evaluate(() => {
+        const t = document.querySelector('[data-testid="spell-detail"] table')
+        if (!t) return { found: false }
+        const side = document.querySelector('[data-testid="spell-side"]')
+        const r = t.getBoundingClientRect()
+        const sr = side.getBoundingClientRect()
+        return { found: true, fits: r.left >= sr.left - 1 && r.right <= sr.right + 1, rows: t.querySelectorAll('tr').length }
+      })
+      if (!tbl.found) problems.push(`${tag}：困惑術詳情應有表格`)
+      else if (!tbl.fits || tbl.rows < 3) problems.push(`${tag}：困惑術的表格應完整顯示（rows=${tbl.rows}）`)
+      await page.getByTestId('detail-back').click()
+      await page.getByTestId('spell-show-blocked').uncheck()
+
+      // 同一列點兩下：先到「僅在法術書」，再到已準備
+      await page.evaluate(() => window.scrollTo(0, 0))
+      const ctl = page.locator(`[data-slot="${W}:spellbook"] button.book-ctl[data-value="spell|护盾术|XPHB"]`)
+      await ctl.click()
+      const known = page.getByTestId('known-spells')
+      if (!(await known.locator('[data-known-group="book"][data-spell="护盾术"]').count())) problems.push(`${tag}：點一下後护盾术應在「僅在法術書」`)
+      await ctl.click()
+      if (await known.locator('[data-known-group="book"][data-spell="护盾术"]').count()) problems.push(`${tag}：點兩下後护盾术不應再在「僅在法術書」`)
+      if (!(await known.locator('[data-known-group="main"][data-spell="护盾术"]').count())) problems.push(`${tag}：點兩下後护盾术應在已準備`)
+      const nav = await page.locator(`[data-pool="${W}:spellbook"]`).innerText()
+      if (!nav.includes('書 1/16・備 1/10')) problems.push(`${tag}：導覽應顯示「書 1/16・備 1/10」，畫面為 ${nav}`)
+      // 死灵师池子：3 格，每格限制
+      await page.click('[data-pool="subclass|死灵师|AU|法师|XPHB:spells:spellbook"]')
+      const restr = await page.getByTestId('pool-restriction').innerText()
+      if (!restr.includes('≤2 環 ×2、≤3 環，限死灵系')) problems.push(`${tag}：死灵师池子的每格限制不對：${restr}`)
+      s = await scrollers()
+      if (s.hscroll) problems.push(`${tag}：頁面不應有水平捲軸（死灵师池子）`)
+    } catch (err) {
+      problems.push(`${tag} 失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
+    } finally {
+      await page.close()
+    }
+  }
 }
 
 /**
