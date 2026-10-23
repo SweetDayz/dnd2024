@@ -7,6 +7,7 @@
  */
 import { computed } from 'vue'
 import type { DataFileName } from '@/data/types'
+import { isSelectable, supersededBy } from '@/data/visibility'
 import type { RulesData } from '@/rules/data'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
@@ -39,6 +40,11 @@ export function useRulesData() {
       get: (id) => catalog.get(id),
       list: (kind) => catalog.list(kind),
       visible: (e) => filter.visible(e),
+      selectable: (e) => isSelectable(e, state),
+      supersededBy: (e) => {
+        const id = supersededBy(e, state.enabled)
+        return id ? catalog.get(id) : undefined
+      },
       tceOptional: state.tceOptional,
       sourceEnabled: (s) => state.enabled.has(s),
     }

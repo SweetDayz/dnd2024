@@ -10,7 +10,7 @@ import { resolve } from 'node:path'
 import { SOURCE_WHITELIST } from '../src/data/sourceGroups.ts'
 import { DATA_FILES } from '../src/data/types.ts'
 import { versionWarnings } from './lib/copy.ts'
-import { buildDataset, type RawInput } from './lib/pipeline.ts'
+import { buildDataset, type BuildReport, type RawInput } from './lib/pipeline.ts'
 import { readRaw, type Json } from './lib/raw.ts'
 import { buildSourceTable } from './lib/sources.ts'
 
@@ -58,7 +58,8 @@ const raw: RawInput = {
 }
 
 const pagePatches = JSON.parse(readFileSync(resolve('scripts/data/page-patches.json'), 'utf8')).patches
-const dataset = buildDataset(raw, { whitelist: SOURCE_WHITELIST, sources, pagePatches })
+const report: BuildReport = { reprintUnresolved: [] }
+const dataset = buildDataset(raw, { whitelist: SOURCE_WHITELIST, sources, pagePatches, report })
 
 mkdirSync(OUT, { recursive: true })
 // 清掉舊的輸出
@@ -94,6 +95,12 @@ for (const [kind, list] of Object.entries(dataset)) {
   const tce = list.filter((e) => e.tceOptional).length
   console.log(`  ${kind.padEnd(16)} ${String(list.length).padStart(5)}  (已被重印 ${reprinted}${tce ? `、TCE 可選 ${tce}` : ''})`)
 }
+
+const missing = report.reprintUnresolved.filter((u) => u.reason === 'target-missing')
+console.log(
+  `重印目標解析不到：${report.reprintUnresolved.length}（目標書不在白名單 ${report.reprintUnresolved.length - missing.length}、目標書在白名單但找不到條目 ${missing.length}）`,
+)
+for (const u of missing) console.log(`  ${u.id} → ${u.ref}`)
 
 if (versionWarnings.length) {
   console.log(`_versions 展開警告（${versionWarnings.length}，見 docs/data-notes.md §3）：`)

@@ -3,11 +3,12 @@
 import { computed } from 'vue'
 import EntryPicker from '@/components/builder/EntryPicker.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
+import { canPick } from '@/rules/data'
 import { sizeLabel } from '@/rules/build'
 import SlotGroup from './SlotGroup.vue'
 
 const { data, store } = useCharacterBuild()
-const list = computed(() => data.value.list('race').filter((e) => data.value.visible(e)))
+const list = computed(() => data.value.list('race').filter((e) => canPick(data.value, e)))
 const COMPAT = '2014 版種族：依 2024 規則不採用種族的屬性加值（改由背景提供）；種族的語言照給，但標示「2014 版」（2024 規則另有通用語＋兩種標準語言）。'
 const speedText = (sp: unknown) =>
   typeof sp === 'number'

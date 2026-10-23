@@ -5,6 +5,10 @@ import { computed, ref } from 'vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import type { Currency, InventoryItem } from '@/rules/character'
 import { itemWeight } from '@/rules/equipment'
+import { entryMatches } from '@/data/sourceDisplay'
+import { useSourceFilterStore } from '@/stores/sourceFilter'
+import LegacyBadge from './LegacyBadge.vue'
+import LegacyHint from './LegacyHint.vue'
 import SourceBadge from './SourceBadge.vue'
 
 const { data, store, sheet } = useCharacterBuild()
@@ -23,14 +27,17 @@ const groups = computed(() => [
 ])
 const groupWeight = (list: { weight: number }[]) => Math.round(list.reduce((s, r) => s + r.weight, 0) * 100) / 100
 
-const matches = computed(() => {
+const filter = useSourceFilterStore()
+const revealLegacy = ref(false)
+const matchSplit = computed(() => {
   const q = query.value.trim().toLowerCase()
-  if (!q) return []
-  return data.value
-    .list('item')
-    .filter((it) => data.value.visible(it) && (it.name.toLowerCase().includes(q) || it.engName?.toLowerCase().includes(q)))
-    .slice(0, 20)
+  if (!q) return { shown: [], hidden: 0 }
+  return filter.legacySplit(
+    data.value.list('item').filter((it) => entryMatches(it, q)),
+    revealLegacy.value,
+  )
 })
+const matches = computed(() => matchSplit.value.shown.slice(0, 20))
 
 function edit(uid: string, fn: (i: InventoryItem) => void) {
   store.update((ch) => {
@@ -105,6 +112,7 @@ const isEquippable = (it: unknown) => {
             <td>
               {{ r.name }} <small class="muted">{{ r.it?.engName }}</small>
               <SourceBadge v-if="r.it" :source="r.it.source" :page="r.it.page" />
+              <LegacyBadge v-if="r.it" :entry="r.it" @jump="(n) => (query = n.name)" />
             </td>
             <td>
               <input
@@ -135,11 +143,13 @@ const isEquippable = (it: unknown) => {
       <input v-model="query" type="search" placeholder="新增物品：輸入名稱搜尋（中文或英文）" data-testid="item-search" />
       <button type="button" :disabled="!query.trim()" @click="addCustom">新增為自訂物品</button>
     </div>
+    <LegacyHint v-model="revealLegacy" :hidden="matchSplit.hidden" />
     <ul v-if="matches.length" class="matches">
       <li v-for="it in matches" :key="it.id">
         <button type="button" :data-id="it.id" @click="add(it.id)">
           {{ it.name }} <small class="muted">{{ it.engName }}</small>
           <SourceBadge :source="it.source" :page="it.page" />
+          <LegacyBadge :entry="it" @jump="(n) => (query = n.name)" />
         </button>
       </li>
     </ul>

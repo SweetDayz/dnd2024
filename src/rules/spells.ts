@@ -12,7 +12,7 @@ import type { Entry } from '../data/types.ts'
 import { parseTags } from '../data/tags.ts'
 import { ABILITY_NAME, formatMod, isAbility, type Ability } from './abilities.ts'
 import type { Build, ClassInfo, SpellGrant } from './build.ts'
-import { spellOnClassList, type RulesData } from './data.ts'
+import { canPick, spellOnClassList, type RulesData } from './data.ts'
 import { casterParts } from './multiclass.ts'
 
 export interface ClassCasting {
@@ -121,7 +121,7 @@ export function classSpellList(data: RulesData, className: string, minLevel: num
     .list('spell')
     .filter(
       (sp) =>
-        data.visible(sp) &&
+        canPick(data, sp) &&
         Number(sp.level) >= minLevel &&
         Number(sp.level) <= maxLevel &&
         spellOnClassList(data, sp, className),

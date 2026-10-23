@@ -1,12 +1,13 @@
 /**
- * sourceFilter store：目前啟用哪些書、以及兩個開關（顯示舊版、TCE 可選規則）。
+ * sourceFilter store：目前啟用哪些書、以及兩個開關（顯示已被重印取代的版本、TCE 可選規則）。
  * 狀態存在 localStorage，重新開啟頁面時還原。
  */
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { DEFAULT_GROUP_ID, SOURCE_GROUPS } from '@/data/sourceGroups'
 import type { Entry } from '@/data/types'
-import { isSuperseded, isVisible, type FilterState } from '@/data/visibility'
+import { isSelectable, isSuperseded, isVisible, splitLegacy, supersededBy, type FilterState } from '@/data/visibility'
+import { useCatalogStore } from './catalog'
 
 export const STORAGE_KEY = 'dnd2024.sourceFilter'
 
@@ -65,7 +66,15 @@ export const useSourceFilterStore = defineStore('sourceFilter', () => {
   }
 
   const visible = (e: Entry) => isVisible(e, state.value)
+  const selectable = (e: Entry) => isSelectable(e, state.value)
   const superseded = (e: Entry) => isSuperseded(e, enabledSet.value)
+  /** 取代這筆條目的新版條目（目前書目下）；沒被取代回傳 undefined */
+  const newerOf = (e: Entry): Entry | undefined => {
+    const id = supersededBy(e, enabledSet.value)
+    return id ? useCatalogStore().get(id) : undefined
+  }
+  /** 一個選單的重印切分（見 splitLegacy）：reveal 是該選單的「暫時顯示」 */
+  const legacySplit = <T extends Entry>(entries: readonly T[], reveal = false) => splitLegacy(entries, state.value, reveal)
 
   watch([groupId, enabled, showLegacy, tceOptional], () => {
     try {
@@ -81,5 +90,19 @@ export const useSourceFilterStore = defineStore('sourceFilter', () => {
     }
   })
 
-  return { groupId, enabled, enabledSet, showLegacy, tceOptional, state, applyGroup, toggleSource, visible, superseded }
+  return {
+    groupId,
+    enabled,
+    enabledSet,
+    showLegacy,
+    tceOptional,
+    state,
+    applyGroup,
+    toggleSource,
+    visible,
+    selectable,
+    superseded,
+    newerOf,
+    legacySplit,
+  }
 })

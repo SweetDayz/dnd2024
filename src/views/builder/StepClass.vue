@@ -3,13 +3,14 @@
 import { computed } from 'vue'
 import EntryPicker from '@/components/builder/EntryPicker.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
+import { canPick } from '@/rules/data'
 import { ABILITY_NAME, isAbility } from '@/rules/abilities'
 import type { Entry } from '@/data/types'
 import SlotGroup from './SlotGroup.vue'
 
 const { data, store } = useCharacterBuild()
 
-const classes = computed(() => data.value.list('class').filter((c) => data.value.visible(c)))
+const classes = computed(() => data.value.list('class').filter((c) => canPick(data.value, c)))
 const startId = computed(() => store.current?.levels[0]?.classId ?? null)
 
 function setClass(id: string | null) {

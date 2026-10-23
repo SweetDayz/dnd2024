@@ -13,13 +13,23 @@ export interface RulesData {
   /** 用 id 查條目（不分大小寫；版本條目也查得到） */
   get(id: string): Entry | undefined
   list(kind: EntryKind): Entry[]
-  /** 目前書目設定下是否可選 */
+  /** 目前書目設定下是否可選（含「隱藏被重印取代的版本」） */
   visible(e: Entry): boolean
+  /**
+   * 不看重印規則的可選性（書目已啟用、TCE 開關）。選擇欄位用它列出選項，被取代的舊版也放進去，
+   * 由畫面決定要不要顯示（全域開關、單一選單暫時顯示、已選的舊版要留著並警示）。省略時等於 visible。
+   */
+  selectable?(e: Entry): boolean
+  /** 取代這筆條目的重印版（第一個來源已啟用的）；沒被取代回傳 undefined。 */
+  supersededBy?(e: Entry): Entry | undefined
   /** TCE 可選規則開關 */
   tceOptional: boolean
   /** 某本書目前是否啟用 */
   sourceEnabled(source: string): boolean
 }
+
+/** 選項清單用的可選性（見 RulesData.selectable）。 */
+export const canPick = (data: RulesData, e: Entry): boolean => (data.selectable ? data.selectable(e) : data.visible(e))
 
 /**
  * 「名稱|來源」參照 → 條目 id。來源省略時用 defaultSource（5etools 慣例是 PHB）。
@@ -226,5 +236,5 @@ export function spellsByFilter(data: RulesData, filter: string): Entry[] {
 
 function makeSpellsByFilter(data: RulesData, filter: string): Entry[] {
   const f = parseSpellFilter(filter)
-  return data.list('spell').filter((sp) => data.visible(sp) && matchSpellFilter(data, sp, f))
+  return data.list('spell').filter((sp) => canPick(data, sp) && matchSpellFilter(data, sp, f))
 }

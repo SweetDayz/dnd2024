@@ -3,10 +3,11 @@
 import { computed } from 'vue'
 import EntryPicker from '@/components/builder/EntryPicker.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
+import { canPick } from '@/rules/data'
 import SlotGroup from './SlotGroup.vue'
 
 const { data, store } = useCharacterBuild()
-const list = computed(() => data.value.list('background').filter((e) => data.value.visible(e)))
+const list = computed(() => data.value.list('background').filter((e) => canPick(data.value, e)))
 const COMPAT = '2014 版背景：依 2024 規則改為任選屬性 +2/+1 或 +1/+1/+1、任選一個起源專長，背景原本的語言照給但標示「2014 版」。'
 </script>
 

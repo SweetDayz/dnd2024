@@ -452,3 +452,23 @@ Vitest 傳 `import ExcelJS from 'exceljs'`。測試因此能「寫出 xlsx → �
 
 `wb.xlsx.writeBuffer()` 在記憶體裡產生檔案內容 → 包成 `Blob` → `URL.createObjectURL` 產生 `blob:` 網址 →
 建立一個 `<a download="檔名">` 並 `click()`。整個過程沒有網路請求，所以 `file://` 也能用。
+
+## 11. M4 新出現的概念
+
+### `defineModel()`：元件自己的 `v-model`
+
+`LegacyHint.vue` 寫 `const reveal = defineModel<boolean>({ default: false })`，父元件就能用
+`<LegacyHint v-model="revealLegacy" :hidden="n" />`。`reveal.value = !reveal.value` 會自動發出
+`update:modelValue` 事件、父元件的 `revealLegacy` 跟著改。等於以前要手寫的「`modelValue` prop ＋ `emit('update:modelValue')`」，
+Vue 3.4 起用一行巨集代替。
+
+### 「選項清單」與「畫面要不要顯示」分開
+
+規則引擎（`src/rules`）產生選項時用 `RulesData.selectable`（不看重印規則），被取代的舊版也放進去；
+要不要顯示交給畫面（`filter.legacySplit(entries, reveal)`）。這樣同一份選項就能做到：
+預設隱藏、單一選單暫時顯示、已選的舊版不消失並警示——而規則引擎不用知道任何 UI 狀態。
+
+### 元件裡不能放巢狀 `<button>`
+
+`EntryRow` 整列是一個 `<button>`，裡面的「已有新版」徽章如果也是 `<button>`，HTML 不允許（瀏覽器會把它搬出去）。
+所以 `LegacyBadge` 用 `<span role="button" tabindex="0">`，並自己處理 `@keydown.enter`；`@click.stop` 阻止點擊冒泡到外層那列。

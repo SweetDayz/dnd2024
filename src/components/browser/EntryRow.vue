@@ -4,12 +4,12 @@
 import { computed, ref } from 'vue'
 import { metaLine } from '@/data/display'
 import type { Entry } from '@/data/types'
-import { useSourceFilterStore } from '@/stores/sourceFilter'
+import LegacyBadge from '../LegacyBadge.vue'
 import SourceBadge from '../SourceBadge.vue'
 import EntryBlock from '../entries/EntryBlock.vue'
 
 const props = defineProps<{ entry: Entry }>()
-const filter = useSourceFilterStore()
+const emit = defineEmits<{ jump: [newer: Entry] }>()
 const open = ref(false)
 const meta = computed(() => metaLine(props.entry))
 </script>
@@ -22,7 +22,7 @@ const meta = computed(() => metaLine(props.entry))
       <span v-if="meta" class="meta">{{ meta }}</span>
       <span class="tags">
         <span v-if="entry.tceOptional" class="chip tce">TCE 可選規則</span>
-        <span v-if="filter.superseded(entry)" class="chip legacy" data-testid="superseded">已有 2024 版</span>
+        <LegacyBadge :entry="entry" @jump="(n) => emit('jump', n)" />
         <span class="chip" :class="entry.edition === '2024' ? 'e2024' : 'e2014'">{{ entry.edition }}</span>
         <SourceBadge :source="entry.source" :page="entry.page" />
       </span>
@@ -84,12 +84,8 @@ const meta = computed(() => metaLine(props.entry))
 .e2024 {
   color: var(--color-accent);
 }
-.e2014,
-.legacy {
+.e2014 {
   color: var(--color-legacy);
-}
-.legacy {
-  border-style: dashed;
 }
 .tce {
   color: var(--color-tce);

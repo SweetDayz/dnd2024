@@ -55,9 +55,47 @@
 
 ## 4. 重印（reprint）
 
-- 只有 `reprintedAs`，**沒有 `isReprinted`**。值有兩種格式：字串 `"人马|MPMM"`，或物件 `{ "uid": "警戒龙纹|EFA", "tag": "feat" }`（tag 指出目標類別，跨類別重印）。
-- 鏈狀：例如 EEPC 鳥羽人 → MPMM → （無 XPHB 版）；DMG 阿斯莫 → XPHB。
-- **隱藏規則（執行期判斷）**：條目若有任一 `reprintedAs` 目標的來源**目前已啟用**，就視為「已被取代」，預設隱藏；目標書沒啟用時舊版照常顯示。這樣關掉 XPHB 時 2014 條目會自動回來。
+- 只有 `reprintedAs`，**沒有 `isReprinted`**。值有兩種格式：字串 `"人马|MPMM"`，或物件 `{ "uid": "警戒龙纹|EFA", "tag": "feat" }`（tag 指出目標類別，跨類別重印）。比對用中文 `name`，不是 `ENG_name`。
+- 鏈狀：例如 EEPC 鳥羽人 → MPMM → （無 XPHB 版）；DMG 阿斯莫 → XPHB。建置期把間接目標也展開進 `reprintedAs`（直接目標在前），中間那本書沒開時最舊版仍會被隱藏。
+- **隱藏規則（M4-2 通用規則，執行期判斷，`src/data/visibility.ts`）**：條目 E 預設隱藏，當且僅當 E 的重印目標中至少一個「來源在目前啟用的書目中」且「確實存在於打包資料中」（後者在建置期處理：`reprintedAs` 只保留解析得到的 id）。目標書沒啟用時舊版照常顯示。
+- 規則引擎的選項清單用 `RulesData.selectable`（不看重印），被取代的舊版也放進選項，由畫面隱藏、提示「已隱藏 N 個重印舊版」並可暫時顯示；已選的舊版保留並警示，列入 `Build.legacyPicks`（M6 審卡報告會用）。
+
+### 4a. 重印統計（M4-2，`raw/` = `5cc0bbe`，scratchpad 腳本 `reprints.cjs`）
+
+| 類別 | 有 `reprintedAs` | 原來源→新來源：數量 |
+| ---- | ---: | ---- |
+| 法術 | 389 | PHB→XPHB 361、XGE→XPHB 10、TCE→XPHB 9、XGE→AU 6、FTD→XPHB 1、SCC→AU 1、TCE→FRHoF 1 |
+| 種族 | 51 | VGM→MPMM 13、PHB→XPHB 7、ERLW→MPMM 4、ERLW→EFA 4、MPMM→XPHB 3、VGM→XPHB 3、MOT→MPMM 3、VRGR→RHW 3、EEPC→MPMM 2、DMG→XPHB 2、GGR→MPMM 2、MPMM→EFA 2、FTD→XPHB 2、WBtW→MPMM 2、MTF→MPMM 2、PHB→EFA 1、EGW→XPHB 1、ERLW→XPHB 1、TTP→MPMM 1 |
+| 亞種 | 46 | ERLW→EFA 17、PHB→XPHB 13、MTF→MPMM 7、EEPC→MPMM 4、ERLW→MPMM 4、VGM→MPMM 3、VGM→XPHB 3、SCAG→MPMM 1、PHB→EFA 1（目標是種族） |
+| 背景 | 13 | PHB→XPHB 9、VRGR→RHW 2、ToA→EFA 1、ERLW→EFA 1 |
+| 專長 | 50 | PHB→XPHB 39、TCE→XPHB 10、ERLW→EFA 1 |
+| 可選特性 | 84 | PHB→XPHB 52、TCE→XPHB 15、XGE→AU 8、TCE→EFA 7、XGE→XPHB 2 |
+| 物品 | 834 | DMG→XDMG 526、PHB→XPHB 209、XGE→XDMG 40、PHB→XDMG 23、DMG→XPHB 12、BMT→XDMG 5、TCE→XDMG 4、SCAG→XPHB 2、MM→XDMG 1、VRGR→RHW 1、MM→XMM 1、SCAG→FRHoF 1，另有冒險模組來源（不在白名單） |
+| 語言 | 46 | PHB→XPHB 18、MM→XMM 15、SCAG→FRHoF 11、SKT→FRHoF 1、HotDQ→FRHoF 1 |
+| 職業 | 13 | PHB→XPHB 12、TCE→EFA 1（奇械師） |
+| 子職 | 77 | 參照格式「短名\|職業\|職業來源\|來源」，PHB／XGE／TCE／SCAG／VRGR 子職 → XPHB 或 EFA 職業 |
+
+**任務檔所說「同檔內找不到目標」的解析方式**：
+- 種族：目標在 `subrace`↔`race` 之間（亞種的重印目標是種族），按類別找就都找得到。
+- 物品 11 筆（易傷護甲、矮人板甲、月刃、以太化板甲 (*)…）：目標在 `magicvariants.json`（XDMG 泛用變體），已打包，可解析。
+- 可選特性 19 筆：跨類別（`tag: feat` 的戰鬥風格 → XPHB 專長；`tag: item` 的奇械注法 → EFA 物品），可解析。
+
+**建置後仍解析不到的 16 筆**（目標書在白名單、但條目不存在；`build-data` 會印出，M4-5 的稽核報告會列）：
+- `元素裔` 的 EEPC 亞種 4 筆 → `元素裔 (气)|MPMM` 等：中文 MPMM 元素裔沒有拆成四種（英文版是四個種族）。EEPC 元素裔母種族本身已有重印到 MPMM，所以這些亞種實際上隨母種族隱藏。
+- `法术卷轴|DMG` → `法术卷轴|XPHB`：上游沒有這個條目（XDMG 有分環位的法術卷軸）。
+- 規則條目（variantrule）11 筆 → XDMG 或 `hazard`：只用於 tooltip，不是建角選項；`hazard`（陷阱與危害）不打包。
+
+### 4b. 數量比對（M4-2 驗收）
+
+`official`、預設篩選（隱藏重印舊版、TCE 可選規則關閉）。參考值是從 `raw/` 獨立計算（重印目標的書啟用且條目存在就算被取代）：
+
+| 類別 | app | 參考值 |
+| ---- | ---: | ---: |
+| 法術 | 574 | 574 |
+| 種族／背景／專長／可選特性／物品／職業 | 73／125／225／127／1686／13 | 同 §10b |
+
+法術的來源分布：XPHB 391、XGE 79、AU 33、FRHoF 19、EGW 15、TCE 11、AI 7、FTD 6、SCC 4、BMT 3、AAG 2、SatO 2、EFA 1、GGR 1。單元測試 `src/rules/__tests__/reprint.spec.ts` 檢查每一類都沒有新舊兩版同時可見。
+上游網站的數量無法在建置環境抓取（列表由 JS 動態產生）；使用者先前決定「與上游網站抽查：先不管」。
 
 ## 5. 職業資料
 

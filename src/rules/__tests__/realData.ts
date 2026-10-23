@@ -7,7 +7,7 @@ import { resolve } from 'node:path'
 import type { EntryKind } from '@/data/ids'
 import { DEFAULT_GROUP_ID, SOURCE_GROUPS } from '@/data/sourceGroups'
 import { DATA_FILES, type DataFile, type Entry } from '@/data/types'
-import { isVisible } from '@/data/visibility'
+import { isSelectable, isVisible, supersededBy } from '@/data/visibility'
 import type { RulesData } from '@/rules/data'
 
 const DIR = resolve(__dirname, '../../../public/data')
@@ -36,14 +36,19 @@ function loadAll() {
   return cache
 }
 
-export function realData(opts: { tceOptional?: boolean; showLegacy?: boolean } = {}): RulesData {
+export function realData(opts: { tceOptional?: boolean; showLegacy?: boolean; enabled?: Iterable<string> } = {}): RulesData {
   const { lists, index } = loadAll()
-  const enabled = new Set(SOURCE_GROUPS[DEFAULT_GROUP_ID]!.sources)
+  const enabled = new Set(opts.enabled ?? SOURCE_GROUPS[DEFAULT_GROUP_ID]!.sources)
   const state = { enabled, showLegacy: opts.showLegacy ?? false, tceOptional: opts.tceOptional ?? false }
   return {
     get: (id) => index.get(id.toLowerCase()),
     list: (kind) => lists.get(kind) ?? [],
     visible: (e) => isVisible(e, state),
+    selectable: (e) => isSelectable(e, state),
+    supersededBy: (e) => {
+      const id = supersededBy(e, enabled)
+      return id ? index.get(id.toLowerCase()) : undefined
+    },
     tceOptional: state.tceOptional,
     sourceEnabled: (s) => enabled.has(s),
   }

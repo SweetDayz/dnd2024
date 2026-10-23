@@ -8,6 +8,7 @@ import { schoolName, spellLevelText } from '@/data/summary'
 import type { DataFileName, Entry, SpellClassRef } from '@/data/types'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
+import LegacyHint from '../LegacyHint.vue'
 import ClassDetail from './ClassDetail.vue'
 import EntryRow from './EntryRow.vue'
 
@@ -38,6 +39,9 @@ const limit = ref(PAGE)
 const spellLevel = ref<string>('')
 const spellSchool = ref<string>('')
 const spellClass = ref<string>('')
+/** 這個分頁暫時顯示重印舊版（換分頁就恢復） */
+const revealLegacy = ref(false)
+watch(tabId, () => (revealLegacy.value = false))
 
 watch(
   tab,
@@ -46,12 +50,19 @@ watch(
   },
   { immediate: true },
 )
-watch([tabId, query, spellLevel, spellSchool, spellClass, () => filter.state], () => (limit.value = PAGE))
+watch([tabId, query, spellLevel, spellSchool, spellClass, revealLegacy, () => filter.state], () => (limit.value = PAGE))
 
 const loaded = computed(() => tab.value.files.every((f) => catalog.isLoaded(f)))
 
-/** 目前書目下可見的條目（還沒套搜尋）。 */
-const visible = computed(() => catalog.list(tabId.value).filter(filter.visible))
+/** 目前書目下可見的條目（還沒套搜尋），以及被隱藏的重印舊版數量。 */
+const split = computed(() => filter.legacySplit(catalog.list(tabId.value), revealLegacy.value))
+const visible = computed(() => split.value.shown)
+
+/** 點「已有新版」：切到新版所在分頁並搜尋它的名稱 */
+function jump(newer: Entry) {
+  if (TABS.some((t) => t.id === newer.kind)) tabId.value = newer.kind
+  query.value = newer.name
+}
 
 const classOptions = computed(() =>
   catalog
@@ -134,10 +145,11 @@ function subracesOf(race: Entry): Entry[] {
         目前書目下共 <strong>{{ visible.length }}</strong> 項<template v-if="filtered">，符合條件 {{ results.length }} 項</template>
       </template>
       <template v-else>載入中…</template>
+      <LegacyHint v-if="loaded" v-model="revealLegacy" :hidden="split.hidden" />
     </p>
 
     <ul class="list">
-      <EntryRow v-for="e in results.slice(0, limit)" :key="e.id" :entry="e">
+      <EntryRow v-for="e in results.slice(0, limit)" :key="e.id" :entry="e" @jump="jump">
         <ClassDetail v-if="e.kind === 'class'" :cls="e" />
         <template v-if="e.kind === 'race' && subracesOf(e).length">
           <h4>亞種</h4>

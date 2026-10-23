@@ -3,6 +3,7 @@
 import { computed } from 'vue'
 import ChoiceSlotView from '@/components/builder/ChoiceSlotView.vue'
 import OriginChip from '@/components/builder/OriginChip.vue'
+import SourceBadge from '@/components/SourceBadge.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import { ABILITIES, ABILITY_NAME, formatMod } from '@/rules/abilities'
 import { pendingSlots } from '@/rules/build'
@@ -57,6 +58,17 @@ const missing = computed(() => {
       <ChoiceSlotView :choice="s" />
     </div>
     <p v-if="!pending.length" class="ok">所有選擇都已完成。</p>
+
+    <template v-if="build?.legacyPicks.length">
+      <h3>已有新版的選擇（{{ build.legacyPicks.length }}）</h3>
+      <p class="muted">這些項目在目前的書目下已被重印取代。存檔不會自動更換，要不要改用新版請和 DM 討論。</p>
+      <ul class="notes" data-testid="legacy-picks">
+        <li v-for="p in build.legacyPicks" :key="p.entry.id">
+          ⚠ {{ p.entry.name }} <SourceBadge :source="p.entry.source" :page="p.entry.page" /> → 新版：{{ p.newer.name }}
+          <SourceBadge :source="p.newer.source" :page="p.newer.page" />
+        </li>
+      </ul>
+    </template>
 
     <template v-if="build?.notes.length">
       <h3>規則說明</h3>
@@ -122,5 +134,8 @@ const missing = computed(() => {
 }
 .notes {
   padding-left: var(--space-3);
+}
+.muted {
+  color: var(--color-text-muted);
 }
 </style>

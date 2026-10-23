@@ -108,7 +108,18 @@ async function interactionSmoke(page, problems) {
     await page.click('[data-tab="race"]')
     await waitCount()
     const before = await count()
-    if (await page.getByTestId('superseded').count()) problems.push('預設不應出現「已有 2024 版」的舊版條目')
+    if (await page.getByTestId('superseded').count()) problems.push('預設不應出現「已有新版」的舊版條目')
+    // M4-2：「已隱藏 N 個重印舊版」可在這個選單暫時顯示
+    const hint = page.getByTestId('legacy-hint')
+    if (!(await hint.count())) problems.push('種族分頁沒有「已隱藏 N 個重印舊版」提示')
+    else {
+      const n = Number(/已隱藏 (\d+)/.exec(await hint.innerText())?.[1] ?? NaN)
+      await hint.click()
+      if ((await count()) !== before + n) problems.push(`暫時顯示舊版後數量應為 ${before}+${n}`)
+      if (!(await page.getByTestId('superseded').first().innerText()).startsWith('已有新版：')) problems.push('舊版沒有「已有新版：…」徽章')
+      await hint.click()
+      if ((await count()) !== before) problems.push('再次點擊提示後應恢復隱藏')
+    }
     await page.locator('[data-testid="per-book"] summary').click()
     await page.locator('input[data-source="XPHB"]').uncheck()
     const after = await count()

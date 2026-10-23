@@ -6,6 +6,9 @@ import { computed, ref } from 'vue'
 import type { ChoiceOption, ChoiceSlot } from '@/rules/build'
 import { useCharacterStore } from '@/stores/character'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
+import type { Entry } from '@/data/types'
+import LegacyBadge from '../LegacyBadge.vue'
+import LegacyHint from '../LegacyHint.vue'
 import SourceBadge from '../SourceBadge.vue'
 import EntryBlock from '../entries/EntryBlock.vue'
 import OriginChip from './OriginChip.vue'
@@ -31,10 +34,31 @@ const status = computed(() => {
   return { text: '已完成', cls: 'done' }
 })
 
+// 重印舊版：規則引擎把被取代的舊版也放進選項（見 RulesData.selectable），這裡預設隱藏，
+// 標題列的提示可在這個欄位暫時顯示；已選的舊版一定留著並警示（存檔不自動移除）。
+const revealLegacy = ref(false)
+const isLegacy = (o: ChoiceOption) => !!o.entry && !filter.showLegacy && filter.superseded(o.entry)
+const legacyHidden = computed(() => props.choice.options.filter((o) => isLegacy(o) && !isSelected(o)).length)
+const selectedLegacy = computed(() =>
+  props.choice.options.filter((o) => isSelected(o) && o.entry && filter.superseded(o.entry)).map((o) => o.label),
+)
+const base = computed(() =>
+  revealLegacy.value ? props.choice.options : props.choice.options.filter((o) => !isLegacy(o) || isSelected(o)),
+)
+
+/** 點「已有新版」：展開新版的說明 */
+function jump(newer: Entry) {
+  const o = props.choice.options.find((x) => x.entry?.id === newer.id)
+  if (o) {
+    query.value = ''
+    openId.value = o.value
+  }
+}
+
 const shown = computed(() => {
   const q = query.value.trim().toLowerCase()
-  if (!q) return props.choice.options
-  return props.choice.options.filter(
+  if (!q) return base.value
+  return base.value.filter(
     (o) => o.label.toLowerCase().includes(q) || o.entry?.engName?.toLowerCase().includes(q) || props.choice.selected.includes(o.value),
   )
 })
@@ -70,8 +94,9 @@ function blocked(o: ChoiceOption): boolean {
       <span class="status" :data-status="status.cls">{{ status.text }}</span>
       <OriginChip v-if="showOrigin" :origin="choice.origin" />
     </div>
-    <ul v-if="choice.warnings.length" class="warnings">
+    <ul v-if="choice.warnings.length || selectedLegacy.length" class="warnings">
       <li v-for="w in choice.warnings" :key="w">⚠ {{ w }}</li>
+      <li v-for="l in selectedLegacy" :key="l" data-testid="legacy-warning">⚠ 已選的「{{ l }}」已有新版（不會自動更換）</li>
     </ul>
 
     <!-- 屬性 +2/+1：每個位置一個下拉選單 -->
@@ -101,7 +126,10 @@ function blocked(o: ChoiceOption): boolean {
     <!-- 有條目的選項：可搜尋清單，點名稱展開說明 -->
     <template v-else-if="hasEntries">
       <button v-if="editing" type="button" class="edit" @click="editing = false">收合</button>
-      <input v-if="choice.options.length > 8" v-model="query" class="search" type="search" placeholder="搜尋（中文或英文）" />
+      <div class="tools">
+        <input v-if="choice.options.length > 8" v-model="query" class="search" type="search" placeholder="搜尋（中文或英文）" />
+        <LegacyHint v-model="revealLegacy" :hidden="legacyHidden" />
+      </div>
       <ul class="entries">
         <li v-for="o in shown" :key="o.value" :class="{ sel: isSelected(o), off: blocked(o) }">
           <div class="row">
@@ -118,7 +146,7 @@ function blocked(o: ChoiceOption): boolean {
             </button>
             <span v-if="o.note" class="note" :class="{ tce: o.note.includes('TCE') }">{{ o.note }}</span>
             <span v-if="o.disabled && !isSelected(o)" class="disabled">{{ o.disabled }}</span>
-            <span v-if="o.entry && filter.superseded(o.entry)" class="legacy">已有 2024 版</span>
+            <LegacyBadge v-if="o.entry" :entry="o.entry" @jump="jump" />
             <SourceBadge v-if="o.entry" :source="o.entry.source" :page="o.entry.page" />
           </div>
           <div v-if="openId === o.value && o.entry" class="detail">
@@ -271,18 +299,22 @@ select,
 }
 .note,
 .disabled,
-.legacy {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.tools .search {
+  flex: 1;
+  margin-bottom: 0;
 }
 .note.tce {
   color: var(--color-tce);
 }
 .disabled {
   color: var(--color-danger);
-}
-.legacy {
-  color: var(--color-legacy);
 }
 .detail {
   padding: var(--space-2) var(--space-3);

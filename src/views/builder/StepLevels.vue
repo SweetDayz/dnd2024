@@ -3,7 +3,9 @@
 // 可以升起始職業，也可以兼職（檢查屬性條件）。每級 HP 取平均或擲骰（可重骰，保留紀錄）。
 import { computed, ref } from 'vue'
 import SourceBadge from '@/components/SourceBadge.vue'
+import LegacyHint from '@/components/LegacyHint.vue'
 import { sourceAbbr } from '@/data/sourceDisplay'
+import { useSourceFilterStore } from '@/stores/sourceFilter'
 import ChoiceSlotView from '@/components/builder/ChoiceSlotView.vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import { ABILITIES, type Ability } from '@/rules/abilities'
@@ -11,6 +13,7 @@ import { rollDie } from '@/rules/dice'
 import { canMulticlass, multiclassRequirement, requirementText } from '@/rules/multiclass'
 
 const { data, store, build, sheet } = useCharacterBuild()
+const filter = useSourceFilterStore()
 const c = computed(() => store.current!)
 
 const scores = computed(
@@ -19,11 +22,13 @@ const scores = computed(
 const currentClasses = computed(() => build.value?.classes.map((i) => i.entry) ?? [])
 
 /** 下一級可選的職業：已有的職業直接升；新職業要檢查兼職條件 */
+const revealLegacy = ref(false)
+const classSplit = computed(() => filter.legacySplit(data.value.list('class'), revealLegacy.value))
 const classOptions = computed(() => {
   const own = new Set(currentClasses.value.map((e) => e.id))
   return data.value
     .list('class')
-    .filter((e) => data.value.visible(e) || own.has(e.id))
+    .filter((e) => classSplit.value.shown.includes(e) || own.has(e.id))
     .map((e) => {
       const check = own.has(e.id) ? { ok: true, reasons: [] } : canMulticlass(e, currentClasses.value, scores.value)
       return { entry: e, own: own.has(e.id), ...check }
@@ -115,6 +120,7 @@ const pendingAt = (r: { slots: { done: boolean; warnings: string[] }[] }) => r.s
             </option>
           </select>
         </label>
+        <LegacyHint v-model="revealLegacy" :hidden="classSplit.hidden" />
         <button type="button" :disabled="c.levels.length >= 20" data-testid="add-level" @click="addLevel()">＋1 級</button>
         <button type="button" :disabled="c.levels.length <= 1" @click="removeLast">移除第 {{ c.levels.length }} 級</button>
       </section>

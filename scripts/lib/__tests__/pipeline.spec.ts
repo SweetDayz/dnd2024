@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SourceInfo } from '../../../src/data/types.ts'
 import { applyMod, expandVersions, resolveCopies } from '../copy.ts'
-import { buildDataset, flattenMagicVariant } from '../pipeline.ts'
+import { buildDataset, flattenMagicVariant, type BuildReport } from '../pipeline.ts'
 
 const src = (source: string, edition: '2014' | '2024' = '2014'): SourceInfo => ({
   source,
@@ -163,6 +163,7 @@ describe('buildDataset', () => {
   })
 
   it('reprintedAs 轉成 id，只保留建置後存在的目標', () => {
+    const report: BuildReport = { reprintUnresolved: [] }
     const ds = buildDataset(
       {
         race: [
@@ -175,15 +176,32 @@ describe('buildDataset', () => {
         optionalfeature: [{ name: '警戒', source: 'TCE', reprintedAs: [{ uid: '警觉|XPHB', tag: 'feat' }] }],
         feat: [{ name: '警觉', source: 'XPHB' }],
       },
-      { whitelist, sources: SOURCES },
+      { whitelist, sources: SOURCES, report },
     )
     const r = Object.fromEntries(ds.race!.map((e) => [e.id, e.reprintedAs]))
-    expect(r['race|阿斯莫|PHB']).toEqual(['race|阿斯莫|MPMM'])
+    // 鏈狀重印：PHB → MPMM → XPHB，間接目標也列進來（直接目標在前）
+    expect(r['race|阿斯莫|PHB']).toEqual(['race|阿斯莫|MPMM', 'race|阿斯莫|XPHB'])
     expect(r['race|阿斯莫|MPMM']).toEqual(['race|阿斯莫|XPHB'])
     expect(r['race|阿斯莫|XPHB']).toBeUndefined()
     expect(r['race|人马|PHB']).toBeUndefined() // 目標書不在白名單
     expect(ds.subrace![0]!.reprintedAs).toEqual(['race|阿斯莫|XPHB'])
     expect(ds.optionalfeature![0]!.reprintedAs).toEqual(['feat|警觉|XPHB'])
+    // 找不到的目標寫進報告：LFL 不在白名單是正常的
+    expect(report.reprintUnresolved.map((u) => [u.id, u.ref, u.reason])).toEqual([
+      ['race|阿斯莫|PHB', '阿斯莫|LFL', 'target-not-whitelisted'],
+      ['race|人马|PHB', '人马|LFL', 'target-not-whitelisted'],
+    ])
+  })
+
+  it('目標書在白名單但條目不存在 → target-missing', () => {
+    const report: BuildReport = { reprintUnresolved: [] }
+    buildDataset(
+      { item: [{ name: '法术卷轴', source: 'PHB', reprintedAs: ['法术卷轴|XPHB'] }] },
+      { whitelist, sources: SOURCES, report },
+    )
+    expect(report.reprintUnresolved).toEqual([
+      { kind: 'item', id: 'item|法术卷轴|PHB', ref: '法术卷轴|XPHB', reason: 'target-missing' },
+    ])
   })
 
   it('子職的重印參照格式為「短名|職業|職業來源|來源」', () => {

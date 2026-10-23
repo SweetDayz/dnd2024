@@ -401,7 +401,7 @@ function aboutSheet({ meta, appVersion, exportedAt, filter, sources }: ExportInp
     ['上游 commit 時間', meta?.committedAt ?? ''],
     ['資料建置時間', meta?.builtAt ?? ''],
     ['書目群組', filter.groupLabel ?? '自訂'],
-    ['顯示已被取代的舊版', filter.showLegacy ? '開' : '關'],
+    ['顯示已被重印取代的版本', filter.showLegacy ? '開' : '關'],
     ['TCE 可選規則', filter.tceOptional ? '開' : '關'],
     ['說明', '本檔是匯出當下的快照；之後修改角色需要重新匯出。'],
   ]

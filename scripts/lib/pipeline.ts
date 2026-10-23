@@ -22,6 +22,21 @@ export interface BuildOptions {
   sources: readonly SourceInfo[]
   /** 缺頁碼時的補丁（scripts/data/page-patches.json，鍵見 patchKey） */
   pagePatches?: Readonly<Record<string, number>>
+  /** 傳入的話，管線會把診斷資訊（找不到的重印目標等）寫進來，給稽核報告用 */
+  report?: BuildReport
+}
+
+/** 一個解析不到的重印參照。 */
+export interface UnresolvedReprint {
+  kind: EntryKind
+  id: string
+  ref: string
+  /** target-not-whitelisted：目標書不在白名單（正常）；target-missing：目標書在白名單但找不到條目 */
+  reason: 'target-not-whitelisted' | 'target-missing'
+}
+
+export interface BuildReport {
+  reprintUnresolved: UnresolvedReprint[]
 }
 
 /** 頁碼補丁的鍵：kind|英文名|來源|等級（只有職業／子職特性用等級區分）。 */
@@ -175,13 +190,45 @@ export function buildDataset(raw: RawInput, opts: BuildOptions): Dataset {
       }
     }
   }
+  const direct = new Map<string, string[]>()
   for (const [kind, list] of Object.entries(out) as [EntryKind, Entry[]][]) {
     for (const e of list) {
       const refs = e.reprintedAs as Json[] | undefined
       delete e.reprintedAs
       if (!refs?.length) continue
-      const ids = refs.map((r) => resolveReprint(kind, r, idByKey)).filter((x): x is string => !!x)
-      if (ids.length) e.reprintedAs = [...new Set(ids)]
+      const ids: string[] = []
+      for (const r of refs) {
+        const id = resolveReprint(kind, r, idByKey)
+        if (id) ids.push(id)
+        else {
+          const ref = typeof r === 'string' ? r : `${r.tag}:${r.uid}`
+          const src = reprintSource(kind, r)
+          opts.report?.reprintUnresolved.push({
+            kind,
+            id: e.id,
+            ref,
+            reason: isAllowed(src) ? 'target-missing' : 'target-not-whitelisted',
+          })
+        }
+      }
+      if (ids.length) direct.set(e.id, [...new Set(ids)])
+    }
+  }
+  // 鏈狀重印（例如 VGM → MPMM → XPHB）：把間接目標也列進來（直接目標在前），
+  // 這樣中間那本書沒開、最新那本有開時，最舊的版本也會被隱藏。
+  for (const list of Object.values(out)) {
+    for (const e of list) {
+      if (!direct.has(e.id)) continue
+      const all: string[] = []
+      const walk = (id: string) => {
+        for (const t of direct.get(id) ?? []) {
+          if (t === e.id || all.includes(t)) continue
+          all.push(t)
+          walk(t)
+        }
+      }
+      walk(e.id)
+      e.reprintedAs = all
     }
   }
 
@@ -289,6 +336,15 @@ function resolveReprint(kind: EntryKind, ref: Json, idByKey: Map<string, string>
   // 亞種的重印目標是種族（例如 VGM 阿斯莫亞種 → XPHB 阿斯莫）
   if (target === 'subrace') return idByKey.get(`race|${key}`)
   return idByKey.get(`${target}|${key}`)
+}
+
+/** 重印參照的目標來源代碼（子職參照的來源在第 4 段）。 */
+function reprintSource(kind: EntryKind, ref: Json): string {
+  const uid: string = typeof ref === 'string' ? ref : ref.uid
+  const parts = uid.split('|')
+  const target = typeof ref === 'string' ? kind : (TAG_KIND[ref.tag] ?? ref.tag)
+  if (target === 'subclass') return parts[3] ?? parts[2] ?? ''
+  return parts[1] ?? 'phb'
 }
 
 function spellClasses(info: Json, canon: (s: unknown) => string): SpellClassRef[] {

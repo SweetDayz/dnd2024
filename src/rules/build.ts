@@ -19,6 +19,7 @@ import { canMulticlass } from './multiclass.ts'
 import { classCastings, classSpellList } from './spells.ts'
 import type { Character } from './character.ts'
 import {
+  canPick,
   languageKey,
   languageList,
   lookupRef,
@@ -182,6 +183,16 @@ export interface Build {
   race?: Entry
   background?: Entry
   notes: { text: string; origin?: Origin }[]
+  /** 已選、但目前書目下已被重印取代的條目（不自動移除，只警示；M6 審卡報告也會列出） */
+  legacyPicks: LegacyPick[]
+}
+
+export interface LegacyPick {
+  entry: Entry
+  /** 取代它的新版 */
+  newer: Entry
+  /** 在哪裡選的：選擇欄位 key，或 race／background／class:<id> */
+  where: string
 }
 
 // ---------------------------------------------------------------------------
@@ -802,7 +813,7 @@ export function checkPrerequisite(
 function featOptions(ctx: Ctx, categories: string[] | null, level: number): ChoiceOption[] {
   return ctx.data
     .list('feat')
-    .filter((f) => ctx.data.visible(f) && (!categories || categories.includes(String(f.category))))
+    .filter((f) => canPick(ctx.data, f) && (!categories || categories.includes(String(f.category))))
     .map((f) => {
       const pre = checkPrerequisite(ctx, f, level)
       const opt = entryOption(f, pre.ok ? undefined : `不符先決條件：${pre.text}`)
@@ -1005,7 +1016,7 @@ function processRace(ctx: Ctx) {
   // 2014 版種族的亞種（例如高等精靈）：亞種的特質、感官、速度、法術疊加在種族上
   const subraces = data
     .list('subrace')
-    .filter((s) => s.raceName === race.name && s.raceSource === race.source && data.visible(s))
+    .filter((s) => s.raceName === race.name && s.raceSource === race.source && canPick(data, s))
   if (subraces.length) {
     const [sid] = addSlot(ctx, {
       key: `${race.id}:subrace`,
@@ -1135,7 +1146,7 @@ function processOptionalFeatureProgression(ctx: Ctx, holder: Entry, classLevel: 
     const types: string[] = ofp.featureType ?? []
     const options = ctx.data
       .list('optionalfeature')
-      .filter((o) => ctx.data.visible(o) && ((o.featureType as string[] | undefined) ?? []).some((t) => types.includes(t)))
+      .filter((o) => canPick(ctx.data, o) && ((o.featureType as string[] | undefined) ?? []).some((t) => types.includes(t)))
       .map((o) => {
         const pre = checkPrerequisite(ctx, o, origin.level)
         const opt = entryOption(o)
@@ -1332,7 +1343,7 @@ function addSubclassSlot(ctx: Ctx, cls: Entry, info: ClassInfo, origin: Origin) 
   if (ctx.out.slots.some((s) => s.key === key)) return
   const options = ctx.data
     .list('subclass')
-    .filter((s) => s.className === cls.name && s.classSource === cls.source && ctx.data.visible(s))
+    .filter((s) => s.className === cls.name && s.classSource === cls.source && canPick(ctx.data, s))
     .map((s) => entryOption(s))
     .sort((a, b) => a.label.localeCompare(b.label, 'zh'))
   const [id] = addSlot(ctx, {
@@ -1548,6 +1559,7 @@ export function buildCharacter(c: Character, data: RulesData): Build {
     spells: [],
     classes: [],
     notes: [],
+    legacyPicks: [],
   }
   const ctx: Ctx = { c, data, out, seen: new Set() }
   processClasses(ctx)
@@ -1559,7 +1571,31 @@ export function buildCharacter(c: Character, data: RulesData): Build {
   resolveDuplicates(ctx)
   resolveExpertiseOptions(ctx)
   resolveScoreChecks(ctx)
+  resolveLegacyPicks(ctx)
   return out
+}
+
+/** 找出已選但已被重印取代的條目（種族、背景、職業、子職，以及所有選擇欄位裡的條目）。 */
+function resolveLegacyPicks(ctx: Ctx) {
+  const by = ctx.data.supersededBy
+  if (!by) return
+  const out = ctx.out
+  const check = (e: Entry | undefined, where: string) => {
+    if (!e) return
+    // 版本條目（例如侏儒的血系）本身沒有 reprintedAs，看母條目
+    const base = e.versionOf ? (ctx.data.get(e.versionOf) ?? e) : e
+    const newer = by(base)
+    if (newer && !out.legacyPicks.some((p) => p.entry.id === base.id)) out.legacyPicks.push({ entry: base, newer, where })
+  }
+  check(out.race, 'race')
+  check(out.background, 'background')
+  for (const ci of out.classes) {
+    check(ci.entry, `class:${ci.entry.id}`)
+    check(ci.subclass, `${ci.entry.id}:subclass`)
+  }
+  for (const slot of out.slots) {
+    for (const v of slot.selected) check(slot.options.find((o) => o.value === v)?.entry, slot.key)
+  }
 }
 
 /** 某一步還沒選完的欄位。 */
