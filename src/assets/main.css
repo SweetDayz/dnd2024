@@ -1,0 +1,44 @@
+/* 全站深色主題。顏色一律用 CSS 變數，之後加淺色主題只要再定義一組變數。 */
+:root {
+  --color-bg: #121418;
+  --color-surface: #1c1f26;
+  --color-surface-raised: #252a33;
+  --color-border: #343a46;
+  --color-text: #e6e8eb;
+  --color-text-muted: #9aa3af;
+  --color-accent: #c9a24a;
+  --color-danger: #e5484d;
+  --color-badge-bg: #2d3442;
+  --color-badge-text: #b8c4d6;
+
+  --radius: 6px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+
+  --font-sans:
+    'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', 'Noto Sans SC', 'Microsoft YaHei',
+    system-ui, sans-serif;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+a {
+  color: var(--color-accent);
+}
