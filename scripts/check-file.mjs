@@ -179,17 +179,17 @@ async function builderSmoke(page, problems) {
       problems.push(`建角：還有未完成的選擇：${left.map((t) => t.split('\n')[0]).join('；')}`)
     }
 
-    // 升到 12 級、選塑能師
+    // 升到 20 級（基準角色，同 DDB 參考畫面）、選塑能師
     await page.click('[data-step="levels"]')
-    await page.getByTestId('level-target').fill('12')
+    await page.getByTestId('level-target').fill('20')
     await page.getByTestId('level-to').click()
     await page.locator('[data-level="3"] .lv-head').click()
     await chip('class|法师|XPHB:subclass', 'subclass|塑能师|XPHB|法师|XPHB')
     const slots = await page.getByTestId('spell-slots').innerText()
-    if (!slots.includes('6環×1')) problems.push(`升級：12 級法師應有 6 環法術位，畫面為 ${slots}`)
+    if (!slots.includes('9環×1')) problems.push(`升級：20 級法師應有 9 環法術位，畫面為 ${slots}`)
     await page.click('[data-step="confirm"]')
-    const hp12 = await page.getByTestId('hp-max').innerText()
-    if (hp12.trim() !== '74') problems.push(`升級：12 級 HP 應為 74，畫面為 ${hp12}`)
+    const hp20 = await page.getByTestId('hp-max').innerText()
+    if (hp20.trim() !== '122') problems.push(`升級：20 級 HP 應為 122，畫面為 ${hp20}`)
 
     await sheetSmoke(page, problems)
   } catch (err) {
@@ -198,7 +198,7 @@ async function builderSmoke(page, problems) {
 }
 
 /**
- * 角卡 smoke test（M2 完成標準）：12 級基準角色的主要數值、手動覆寫標示、效果連結，
+ * 角卡 smoke test（M2 完成標準）：20 級基準角色的主要數值、手動覆寫標示、效果連結，
  * 以及 JSON 匯出再匯入後角卡完全相同。
  * @param {import('playwright').Page} page
  * @param {string[]} problems
@@ -207,10 +207,16 @@ async function sheetSmoke(page, problems) {
   try {
     await page.click('[data-view="sheet"]')
     const text = async (id) => (await page.getByTestId(id).first().innerText()).replace(/\s+/g, ' ').trim()
-    const expect = { 'sheet-ac': '11', 'sheet-hp': '74', 'sheet-pb': '+4', 'sheet-init': '+1', 'sheet-pp': '12', 'sheet-dc': 'DC 15' }
+    // DDB 參考畫面（20 級）：法術 DC 17
+    const expect = { 'sheet-ac': '11', 'sheet-hp': '122', 'sheet-pb': '+6', 'sheet-init': '+1', 'sheet-pp': '12', 'sheet-dc': 'DC 17' }
     for (const [id, want] of Object.entries(expect)) {
       const got = await text(id)
       if (!got.startsWith(want)) problems.push(`角卡：${id} 應為 ${want}，畫面為 ${got}`)
+    }
+    // 動作分頁：DDB 的匕首 +7、長棍 +5、冷凍射線 +9、光導箭 +8
+    for (const [name, want] of [['匕首', '+7'], ['长棍', '+5'], ['冷冻射线', '+9'], ['光导箭', '+8']]) {
+      const got = (await page.locator(`[data-attack="${name}"] [data-col="hit"]`).first().innerText()).trim()
+      if (got !== want) problems.push(`角卡動作：${name} 應為 ${want}，畫面為 ${got}`)
     }
     // 手動覆寫 AC → 顯示「已覆寫」，清空後恢復
     const ac = page.locator('[data-override="ac"]')

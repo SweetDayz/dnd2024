@@ -27,7 +27,7 @@ const groups = computed(() => {
           .filter((x) => x.proficient)
           .map((x) => ({ label: `${x.ability.toUpperCase()} ${formatMod(x.mod)}`, sources: x.sources })),
       }
-    return { k, rows: s.profs[k].map((r) => ({ label: r.label, sources: r.sources })) }
+    return { k, rows: s.profs[k].map((r) => ({ label: r.legacy ? `${r.label}【2014 版】` : r.label, sources: r.sources })) }
   })
 })
 </script>

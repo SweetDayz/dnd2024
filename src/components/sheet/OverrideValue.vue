@@ -1,14 +1,17 @@
 <script setup lang="ts">
 // 可手動覆寫的數值：點 ✎ 輸入覆寫值，清空就恢復自動計算。覆寫中的數值會標示「已覆寫」並顯示原本的計算值。
 import { computed, ref } from 'vue'
+import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import { formatMod } from '@/rules/abilities'
-import { withOverride } from '@/rules/sheetExtras'
-import { useCharacterStore } from '@/stores/character'
 
+// value 是規則引擎套用覆寫（並連動其他數值）之後的最終值；計算值從 sheet.overridden 查
 const props = defineProps<{ k: string; value: number; signed?: boolean; suffix?: string }>()
-const store = useCharacterStore()
+const { store, sheet } = useCharacterBuild()
 const editing = ref(false)
-const shown = computed(() => withOverride(store.current?.overrides ?? {}, props.k, props.value))
+const shown = computed(() => {
+  const o = sheet.value?.overridden[props.k]
+  return { value: props.value, computed: o?.computed ?? props.value, overridden: !!o }
+})
 const fmt = (n: number) => (props.signed ? formatMod(n) : String(n)) + (props.suffix ?? '')
 
 function save(e: Event) {

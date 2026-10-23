@@ -92,7 +92,7 @@ const PROF_MARK = ['○', '●', '◉']
         </div>
         <div class="stat">
           <span>熟練加值</span>
-          <strong data-testid="sheet-pb">{{ formatMod(sheet.profBonus) }}</strong>
+          <strong data-testid="sheet-pb"><OverrideValue k="profBonus" :value="sheet.profBonus" signed /></strong>
         </div>
         <div class="stat">
           <span>先攻</span>
@@ -115,7 +115,7 @@ const PROF_MARK = ['○', '●', '◉']
             <div v-for="a in ABILITIES" :key="a" class="ability" :data-ability="a">
               <span class="abbr">{{ ABILITY_NAME[a].zh }}</span>
               <strong class="mod">{{ formatMod(sheet.abilities[a].mod) }}<EffectMark :field="`check:${a}`" /></strong>
-              <span class="score">{{ sheet.abilities[a].score }}</span>
+              <span class="score"><OverrideValue :k="`ability:${a}`" :value="sheet.abilities[a].score" /></span>
             </div>
           </section>
 
@@ -134,7 +134,10 @@ const PROF_MARK = ['○', '●', '◉']
           <section class="box">
             <h4>感官與防禦</h4>
             <p v-for="s in sheet.senses" :key="s.type">{{ SENSE[s.type] ?? s.type }} {{ s.range }} 呎 <EffectMark field="senses" /></p>
-            <p>被動洞悉 {{ sheet.passive.insight }}、被動調查 {{ sheet.passive.investigation }}</p>
+            <p>
+              被動洞悉 <OverrideValue k="passiveInsight" :value="sheet.passive.insight" />、被動調查
+              <OverrideValue k="passiveInvestigation" :value="sheet.passive.investigation" />
+            </p>
             <p v-if="build.size">體型：{{ sizeLabel(build.size.value) }}</p>
             <p v-for="(d, i) in build.defenses" :key="i">{{ DEF[d.type] }}：{{ d.value }} <OriginChip :origin="d.origin" /></p>
           </section>
@@ -144,7 +147,10 @@ const PROF_MARK = ['○', '●', '◉']
             <p><span class="muted">護甲</span> {{ sheet.profs.armor.map((p) => p.label).join('、') || '—' }}</p>
             <p><span class="muted">武器</span> {{ sheet.profs.weapon.map((p) => p.label).join('、') || '—' }}</p>
             <p><span class="muted">工具</span> {{ sheet.profs.tool.map((p) => p.label).join('、') || '—' }}</p>
-            <p><span class="muted">語言</span> {{ sheet.profs.language.map((p) => p.label).join('、') || '—' }}</p>
+            <p>
+              <span class="muted">語言</span>
+              {{ sheet.profs.language.map((p) => (p.legacy ? `${p.label}【2014 版】` : p.label)).join('、') || '—' }}
+            </p>
           </section>
         </aside>
 

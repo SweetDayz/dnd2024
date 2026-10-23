@@ -71,13 +71,31 @@ function maxLevelOf(from: Entry, level: number, progression: string): number {
   return 0
 }
 
-export function classCastings(classes: ClassInfo[], mods: Record<Ability, number>): ClassCasting[] {
+/**
+ * 子職施法者用哪張職業法術清單：資料沒有專用欄位，但子職特性內文會用
+ * `{@filter 术士法术列表|spells|class=术士}` 指向清單（奧法騎士、詭術師→法師；AU 秘術武者→術士）。
+ * 取第一個指向法術的 filter 的 class=；找不到才退回法師。
+ */
+export function subclassSpellList(data: RulesData | undefined, sc: Entry): string {
+  if (!data) return '法师'
+  // 「施法」常是標題特性內以 refSubclassFeature 參照的小特性，所以直接掃這個子職的所有特性
+  const feats = data
+    .list('subclassFeature')
+    .filter((f) => f.subclassShortName === sc.shortName && f.subclassSource === sc.source && f.className === sc.className && f.classSource === sc.classSource)
+    .sort((a, b) => Number(a.level) - Number(b.level))
+  for (const f of feats) {
+    const m = /\{@filter [^|}]*\|spells\|[^}]*?class=([^|}]+)/.exec(JSON.stringify(f?.entries ?? []))
+    if (m) return m[1]!.split(';')[0]!
+  }
+  return '法师'
+}
+
+export function classCastings(classes: ClassInfo[], mods: Record<Ability, number>, data?: RulesData): ClassCasting[] {
   return casterParts(classes).map((p) => {
     const L = p.info.level
     const from = p.from
     const cls = p.info.entry
-    // 子職施法者（奧法騎士、詭術師）用法師清單：資料沒有欄位指出清單，依 2024／2014 PHB 規則固定為法師
-    const listName = from === cls ? cls.name : '法师'
+    const listName = from === cls ? cls.name : subclassSpellList(data, from)
     const prepared =
       at(from.preparedSpellsProgression, L) ??
       (typeof from.preparedSpells === 'string' && p.ability ? evalPreparedFormula(from.preparedSpells, L, mods) : undefined)
@@ -265,7 +283,7 @@ export function spellRows(
   pb: number,
   charLevel: number,
 ): SpellRow[] {
-  const castings = classCastings(b.classes, mods)
+  const castings = classCastings(b.classes, mods, data)
   const classAbility = castings[0]?.ability
   const rows: SpellRow[] = []
   for (const g of b.spells) {

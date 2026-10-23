@@ -225,7 +225,11 @@ const bonusOf = (v: unknown) => Number(String(v ?? '0').replace('+', '')) || 0
  *   無甲 10＋敏捷；輕甲 基礎＋敏捷；中甲 基礎＋敏捷（最多 2）；重甲 基礎；盾牌 +2；魔法物品 bonusAc。
  * 無甲防禦等只有文字的特性不在這裡算（列在效果頁，可手動覆寫）。
  */
-export function armorClass(data: RulesData, c: Character, sheet: Pick<Sheet, 'abilities' | 'profs'>): ArmorClass {
+export function armorClass(
+  data: RulesData,
+  c: Character,
+  sheet: Pick<Sheet, 'abilities'> & { profs: Pick<Sheet['profs'], 'armor'> },
+): ArmorClass {
   const equipped = c.inventory.filter((i) => i.equipped).map((i) => ({ inv: i, it: i.itemId ? data.get(i.itemId) : undefined }))
   const armor = equipped.find((x) => ['LA', 'MA', 'HA'].includes(typeCode(x.it)))?.it
   const shield = equipped.find((x) => typeCode(x.it) === 'S')?.it
@@ -242,7 +246,7 @@ export function armorClass(data: RulesData, c: Character, sheet: Pick<Sheet, 'ab
     const trained = new Set(sheet.profs.armor.map((p) => p.value))
     const need = t === 'LA' ? 'light' : t === 'MA' ? 'medium' : 'heavy'
     if (!trained.has(need)) warnings.push(`沒有${armor.name}的護甲訓練：力量、敏捷的檢定、豁免與攻擊具有劣勢，且不能施法`)
-    if (armor.strength && sheet.abilities.str.score < Number(armor.strength)) warnings.push(`力量低於 ${armor.strength}：速度 −10 呎`)
+    if (armor.strength && sheet.abilities.str.score < Number(armor.strength)) warnings.push(`力量低於 ${armor.strength}：速度 −10 呎（已自動計入）`)
     if (armor.bonusAc) parts.push({ label: `${armor.name}加值`, value: bonusOf(armor.bonusAc) })
   }
   if (shield) {

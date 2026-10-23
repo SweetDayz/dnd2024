@@ -90,6 +90,7 @@
 | **M0** | 本機開發環境＋專案骨架（Vue 導讀）                                                        | `docs/tasks/M0.md` |
 | **M1** | 資料管線＋書目篩選（預設「官方」群組），可瀏覽各類選項並標註來源                          | `docs/tasks/M1.md` |
 | **M2** | 依啟用書目建立角色（分 M2a–M2e 子階段）並顯示深色角卡                                     | `docs/tasks/M2.md` |
+| **M3** | 匯出角卡為 Excel 檔（給 Google 試算表用）                                                 | `docs/tasks/M3.md` |
 | 之後   | 簡轉繁＋台灣術語覆寫、玩家自訂單本書目、列印版、淺色主題、homebrew、GitHub Pages 自動部署 | 尚未撰寫           |
 
 ## 9. 給 Claude 的工作方式
@@ -97,7 +98,7 @@
 - 每個任務開工前先列出計畫與要改的檔案，等使用者同意後才動手。**例外**：使用者用 `/auto` 啟動時，依 `.claude/skills/auto/SKILL.md` 的停止條件連續執行，不必逐一等待同意。
 - 專案內建的斜線指令在 `.claude/skills/`：`/next`（做下一個子任務）、`/auto`（自動跑完一個里程碑）、`/verify`（驗收）、`/status`（進度）、`/refresh-data`（更新上游資料）、`/teach`（用本專案教 Vue）。
 - 需要使用者決定、但有合理預設值的事：先用預設值繼續，並記到 `docs/data-notes.md` 的「待決事項」區，之後一起問。
-- 規則引擎（`src/rules`）必須是純函式並寫 Vitest 測試。基準測試角色：**岩地侏儒、侍僧背景、塑能師法師**（參照 `docs/ref/ddb-screens.md`）。
+- 規則引擎（`src/rules`）必須是純函式並寫 Vitest 測試。基準測試角色：**岩地侏儒、侍僧背景、塑能師法師 20 級**（參照 `docs/ref/ddb-screens.md`，DDB 畫面就是 20 級）。
 - 每完成一個子任務：執行 `/verify` 的流程（lint、test、build、Playwright 以 `file://` 實測），通過後勾選任務檔並 commit（不自動 push）。
 - 遇到會影響資料結構、之後很難改的衝突或缺漏，寫進 `docs/data-notes.md` 並停下來問使用者，不要自行假設。
 - 使用者是 IT 人員，可以直接使用專有名詞，回覆用繁體中文。

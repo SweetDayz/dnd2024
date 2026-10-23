@@ -15,6 +15,7 @@ import { classFeatureRef, subclassFeatureRef } from '../data/classRefs.ts'
 import { ABILITIES, ABILITY_NAME, isAbility, type Ability } from './abilities.ts'
 import { abilityScores } from './derive.ts'
 import { goldAlternative, startingSets } from './equipment.ts'
+import { canMulticlass } from './multiclass.ts'
 import { classCastings, classSpellList } from './spells.ts'
 import type { Character } from './character.ts'
 import {
@@ -739,10 +740,15 @@ function processSpells(ctx: Ctx, list: Json[], prefix: string, origin: Origin, l
 // ---------------------------------------------------------------------------
 
 /** 先決條件文字；`ok` 為 false 表示確定不符合。無法自動判斷的只回傳文字。 */
+/**
+ * 先決條件。`scores` 有給時（建角最後的檢查）才判斷屬性；種族、專長、施法、護甲熟練依目前已收集到的內容判斷。
+ * 判斷不了的條件（戰役限定、特定特性等）只顯示文字，不擋選。
+ */
 export function checkPrerequisite(
   ctx: { data: RulesData; out: Build },
   e: Entry,
   level: number,
+  scores?: Record<Ability, number>,
 ): { ok: boolean; text: string } {
   const alts = e.prerequisite as Json[] | undefined
   if (!alts?.length) return { ok: true, text: '' }
@@ -759,13 +765,33 @@ export function checkPrerequisite(
       parts.push(
         p.ability.map((o: Json) => Object.entries(o).map(([a, v]) => `${abilityLabel(a)} ${v}+`).join('、')).join(' 或 '),
       )
+      // 陣列中任一物件達到即可；物件內全部達到
+      if (scores && !p.ability.some((o: Json) => Object.entries(o).every(([a, v]) => isAbility(a) && scores[a] >= Number(v)))) ok = false
     }
-    if (p.spellcasting || p.spellcasting2020) parts.push('能施放法術')
-    if (Array.isArray(p.race)) parts.push(`種族：${p.race.map((r: Json) => r.name).join('、')}`)
-    if (Array.isArray(p.feat)) parts.push(`專長：${p.feat.map((f: string) => f.split('|')[0]).join('、')}`)
+    if (p.spellcasting || p.spellcasting2020) {
+      parts.push('能施放法術')
+      const caster = ctx.out.classes.some((i) => i.entry.casterProgression || i.subclass?.casterProgression)
+      if (scores && !caster) ok = false
+    }
+    if (Array.isArray(p.race)) {
+      parts.push(`種族：${p.race.map((r: Json) => r.name).join('、')}`)
+      const raceNames = [ctx.out.race?.name, ctx.out.race?.versionOf?.split('|')[1]].filter(Boolean).join(' ')
+      const raceEng = (ctx.out.race?.engName ?? '').toLowerCase()
+      if (scores && ctx.out.race && !p.race.some((r: Json) => raceNames.includes(r.name) || (r.ENG_name && raceEng.includes(String(r.ENG_name).toLowerCase())))) ok = false
+    }
+    if (Array.isArray(p.feat)) {
+      parts.push(`專長：${p.feat.map((f: string) => f.split('|')[0]).join('、')}`)
+      const owned = new Set(ctx.out.feats.map((f) => f.entry.name.split(/[；;]/)[0]))
+      if (scores && !p.feat.some((f: string) => owned.has(f.split('|')[0]!.split(/[；;]/)[0]!))) ok = false
+    }
     if (p.otherSummary?.entrySummary) parts.push(String(p.otherSummary.entrySummary))
     if (p.other) parts.push(String(p.other))
-    if (Array.isArray(p.proficiency)) parts.push('需要特定熟練')
+    if (Array.isArray(p.proficiency)) {
+      const armor = p.proficiency.map((x: Json) => x.armor).filter(Boolean) as string[]
+      parts.push(armor.length ? `${armor.map((a) => profLabel(ctx.data, 'armor', a)).join('、')}訓練` : '需要特定熟練')
+      const has = new Set(ctx.out.profs.filter((x) => x.type === 'armor').map((x) => x.value))
+      if (scores && armor.length && !armor.every((a) => has.has(a))) ok = false
+    }
     if (Array.isArray(p.feature)) parts.push(`特性：${p.feature.join('、')}`)
     texts.push(parts.join('，'))
     if (ok) anyOk = true
@@ -896,7 +922,11 @@ function processEntity(ctx: Ctx, e: Entry, prefix: string, origin: Origin, step:
   for (const [field, type] of profFields) {
     const v = e[field]
     if (!Array.isArray(v)) continue
-    if (type === 'language' && (opts.legacyRace || opts.legacyBackground)) continue
+    // 2014 種族／背景的語言：照給，但來源標示「2014 版」，讓玩家與 DM 一眼看出（使用者 2026-10-23 決定）
+    if (type === 'language' && (opts.legacyRace || opts.legacyBackground)) {
+      processProfField(ctx, type, v, prefix, { ...origin, name: `${origin.name}（2014 版）`, compat: true })
+      continue
+    }
     // 專長、種族的熟練選擇就顯示在該條目的步驟，避免玩家得到處找
     // 升級時得到的（例如 8 級選的專長）就顯示在升級步驟；其餘依類型放到熟練／語言步驟
     processProfField(ctx, type, v, prefix, origin, step === 'levels' ? 'levels' : undefined)
@@ -944,7 +974,7 @@ function processRace(ctx: Ctx) {
     out.notes.push({ text: '依 2024 規則，2014 版種族的屬性加值不採用（改由背景提供）', origin })
   }
   if (legacy && Array.isArray(race.languageProficiencies)) {
-    out.notes.push({ text: '依 2024 規則，2014 版種族的語言不採用（改用通用語＋兩種標準語言）', origin })
+    out.notes.push({ text: '2014 版種族的語言照給，並標示為「2014 版」（2024 規則另有通用語＋兩種標準語言）', origin })
   }
 
   // 體型
@@ -1050,7 +1080,7 @@ function processBackground(ctx: Ctx) {
       out.notes.push({ text: '2014 版背景沒有起源專長：依 2024 規則任選一個起源專長', origin })
     }
     if (Array.isArray(bg.languageProficiencies)) {
-      out.notes.push({ text: '依 2024 規則，2014 版背景的語言不採用（改用通用語＋兩種標準語言）', origin })
+      out.notes.push({ text: '2014 版背景的語言照給，並標示為「2014 版」（2024 規則另有通用語＋兩種標準語言）', origin })
     }
   }
   const before = out.slots.length
@@ -1326,7 +1356,7 @@ function processClassSpells(ctx: Ctx) {
   const { c, data, out } = ctx
   const scores = abilityScores(c, out)
   const mods = Object.fromEntries(ABILITIES.map((a) => [a, scores[a].mod])) as Record<Ability, number>
-  for (const cc of classCastings(out.classes, mods)) {
+  for (const cc of classCastings(out.classes, mods, data)) {
     const cls = cc.info.entry
     const origin: Origin = { type: cc.from === cls ? 'class' : 'subclass', name: cc.from.name, entry: cc.from, level: c.levels.length }
     const opts = (min: number, max: number) => classSpellList(data, cc.listName, min, max).map((sp) => entryOption(sp))
@@ -1461,6 +1491,35 @@ function resolveDuplicates(ctx: Ctx) {
   }
 }
 
+/**
+ * 最後檢查（需要最終屬性值的東西）：專長的先決條件、兼職條件。
+ * 用的是套用手動覆寫後的屬性值，所以覆寫屬性也會連動到這裡。
+ */
+function resolveScoreChecks(ctx: Ctx) {
+  const { c, out } = ctx
+  const final = abilityScores(c, out)
+  const scores = Object.fromEntries(ABILITIES.map((a) => [a, final[a].score])) as Record<Ability, number>
+  for (const s of out.slots) {
+    if (s.type !== 'feat') continue
+    for (const o of s.options) {
+      if (!o.entry) continue
+      const pre = checkPrerequisite(ctx, o.entry, s.origin.level, scores)
+      if (pre.ok) {
+        if (o.disabled?.startsWith('不符先決條件')) delete o.disabled
+        continue
+      }
+      if (s.selected.includes(o.value)) s.warnings.push(`「${o.entry.name}」不符先決條件：${pre.text}`)
+      else o.disabled = `不符先決條件：${pre.text}`
+    }
+  }
+  const current = out.classes.map((i) => i.entry)
+  for (const info of out.classes) {
+    if (info.primary) continue
+    const check = canMulticlass(info.entry, current, scores)
+    if (!check.ok) out.notes.push({ text: `兼職${info.entry.name}的條件不符：${check.reasons.join('；')}`, origin: classOrigin(info.entry, info.level, c.levels.length) })
+  }
+}
+
 /** 專精：選項只能是已熟練的技能（要等所有熟練都收集完才知道）。 */
 function resolveExpertiseOptions(ctx: Ctx) {
   const proficient = new Set(ctx.out.profs.filter((p) => p.type === 'skill').map((p) => p.value))
@@ -1499,6 +1558,7 @@ export function buildCharacter(c: Character, data: RulesData): Build {
   processStartingEquipment(ctx)
   resolveDuplicates(ctx)
   resolveExpertiseOptions(ctx)
+  resolveScoreChecks(ctx)
   return out
 }
 

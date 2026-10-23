@@ -3,8 +3,12 @@
  *
  * 兩者都是 computed：角色的任何選擇、書目設定或資料改變，Vue 會自動重算，
  * 元件只要讀 build.value / sheet.value 就好。
+ *
+ * 全站共用同一組 computed（每個 Pinia 實例一份）：如果每個元件各自 computed，
+ * 角卡上幾十個元件就會各自重算一次整個角色。共用的 computed 放在獨立的 effectScope，
+ * 不會隨某個元件卸載而停止。
  */
-import { computed } from 'vue'
+import { computed, effectScope } from 'vue'
 import { buildCharacter } from '@/rules/build'
 import { ABILITIES, type Ability } from '@/rules/abilities'
 import { deriveSheet } from '@/rules/derive'
@@ -13,9 +17,20 @@ import { classCastings, spellcastingStats, spellRows } from '@/rules/spells'
 import { useCharacterStore } from '@/stores/character'
 import { useRulesData } from './useRulesData'
 
+const shared = new WeakMap<object, ReturnType<typeof create>>()
+
 export function useCharacterBuild() {
-  const { data, ready } = useRulesData()
   const store = useCharacterStore()
+  let api = shared.get(store)
+  if (!api) {
+    api = effectScope(true).run(() => create(store))!
+    shared.set(store, api)
+  }
+  return api
+}
+
+function create(store: ReturnType<typeof useCharacterStore>) {
+  const { data, ready } = useRulesData()
   const build = computed(() => (ready.value && store.current ? buildCharacter(store.current, data.value) : undefined))
   const sheet = computed(() =>
     build.value && store.current ? deriveSheet(store.current, build.value, data.value) : undefined,
@@ -29,7 +44,7 @@ export function useCharacterBuild() {
   )
   /** 各施法職業的法術 DC、攻擊加值 */
   const casting = computed(() =>
-    build.value && sheet.value ? spellcastingStats(classCastings(build.value.classes, mods.value), mods.value, sheet.value.profBonus) : [],
+    build.value && sheet.value ? spellcastingStats(classCastings(build.value.classes, mods.value, data.value), mods.value, sheet.value.profBonus) : [],
   )
   /** 攻擊列：武器、徒手打擊、攻擊型法術 */
   const attacks = computed(() =>
