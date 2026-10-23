@@ -38,6 +38,7 @@ const KIND_LABEL: Record<EntryKind, string> = {
   action: '動作',
   itemProperty: '物品屬性',
   itemMastery: '武器精通',
+  itemType: '物品類型',
 }
 
 const REASON_LABEL: Record<DropReason | 'excluded', string> = {

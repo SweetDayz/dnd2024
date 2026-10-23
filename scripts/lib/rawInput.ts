@@ -66,6 +66,8 @@ export function readRawInput(): RawRead {
     action: readRaw('actions.json').action,
     itemProperty: itemsBase.itemProperty,
     itemMastery: itemsBase.itemMastery,
+    // M7-7：物品類型代碼的中文名（近战武器、乐器…），物品表格的「類型」欄與篩選用
+    itemType: itemsBase.itemType,
   }
   return { input, excluded }
 }

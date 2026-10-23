@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue'
 import type { EntryKind } from '@/data/ids'
 import { entryMatches, sourceAbbr } from '@/data/sourceDisplay'
 import { schoolName, spellLevelText } from '@/data/summary'
+import { itemDefaults } from '@/data/itemTable'
 import { languageDefaults } from '@/data/languageTable'
 import { useRulesData } from '@/composables/useRulesData'
 import { languageRows } from '@/rules/data'
@@ -12,6 +13,7 @@ import type { DataFileName, Entry, SpellClassRef } from '@/data/types'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
 import LegacyHint from '../LegacyHint.vue'
+import ItemTables from '../items/ItemTables.vue'
 import LanguageTable from '../languages/LanguageTable.vue'
 import ClassDetail from './ClassDetail.vue'
 import EntryRow from './EntryRow.vue'
@@ -109,6 +111,10 @@ const filtered = computed(
 const rules = useRulesData()
 const langRows = computed(() => languageRows(rules.data.value).filter((r) => filter.visible(r.entry)))
 const langDefaults = computed(() => languageDefaults(filter.enabled))
+// 物品分頁（M7-7）：一般／魔法兩個表＋三態篩選（含價值、重量範圍）
+const itemDefaultState = computed(() => itemDefaults(filter.enabled))
+/** 表格型分頁：自己有搜尋與篩選，不用上方的搜尋列與清單 */
+const tableTab = computed(() => tabId.value === 'language' || tabId.value === 'item')
 
 function subracesOf(race: Entry): Entry[] {
   return catalog
@@ -134,7 +140,7 @@ function subracesOf(race: Entry): Entry[] {
       </button>
     </nav>
 
-    <div v-if="tabId !== 'language'" class="toolbar">
+    <div v-if="!tableTab" class="toolbar">
       <input v-model="query" type="search" placeholder="搜尋中文或英文名，或來源（PHB24／XPHB）…" data-testid="search" />
       <template v-if="tabId === 'spell'">
         <select v-model="spellLevel" data-testid="spell-level">
@@ -161,7 +167,15 @@ function subracesOf(race: Entry): Entry[] {
     </p>
 
     <LanguageTable v-if="tabId === 'language' && loaded" table-id="browser:language" :rows="langRows" :defaults="langDefaults" />
-    <ul v-else class="list">
+    <ItemTables
+      v-else-if="tabId === 'item' && loaded"
+      table-id="browser:item"
+      :items="visible"
+      :data="rules.data.value"
+      :defaults="itemDefaultState"
+      @jump="jump"
+    />
+    <ul v-else-if="!tableTab" class="list">
       <EntryRow v-for="e in results.slice(0, limit)" :key="e.id" :entry="e" @jump="jump">
         <ClassDetail v-if="e.kind === 'class'" :cls="e" />
         <template v-if="e.kind === 'race' && subracesOf(e).length">
@@ -172,7 +186,7 @@ function subracesOf(race: Entry): Entry[] {
         </template>
       </EntryRow>
     </ul>
-    <button v-if="tabId !== 'language' && results.length > limit" type="button" class="more" @click="limit += PAGE">
+    <button v-if="!tableTab && results.length > limit" type="button" class="more" @click="limit += PAGE">
       再顯示 {{ Math.min(PAGE, results.length - limit) }} 項（還有 {{ results.length - limit }} 項）
     </button>
   </section>

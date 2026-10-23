@@ -217,6 +217,24 @@ async function interactionSmoke(page, problems) {
     const nLangBadged = await page.locator('[data-testid="language-table"] tbody tr:has([data-testid="source-badge"])').count()
     if (!nLang || nLang !== nLangBadged) problems.push(`語言分頁：${nLang} 列只有 ${nLangBadged} 列有來源徽章`)
 
+    // M7-7：物品分頁篩選「稀有度：珍稀」→ 只剩魔法物品表、每列都是珍稀；依價值排序第一列最低
+    await page.click('[data-tab="item"]')
+    const items = page.getByTestId('item-tables')
+    await items.locator('[data-table="mundane"] tbody tr').first().waitFor({ timeout: 5000 })
+    await items.getByTestId('item-filter-toggle').click()
+    await items.locator('[data-group="rarity"] [data-tag="rare"]').click()
+    if (await items.locator('[data-table="mundane"]').count()) problems.push('物品：篩選珍稀後仍顯示一般物品表')
+    const rarities = await items.locator('[data-table="magic"] [data-rarity]').evaluateAll((es) => es.map((e) => e.getAttribute('data-rarity')))
+    if (!rarities.length || rarities.some((r) => r !== 'rare')) problems.push(`物品：篩選珍稀後有其他稀有度：${[...new Set(rarities)].join(',')}`)
+    await items.getByTestId('item-filter-reset').click()
+    await items.locator('[data-table="mundane"] th[data-sort="value"]').click()
+    const cps = (await items.locator('[data-table="mundane"] [data-cp]').evaluateAll((es) => es.map((e) => e.getAttribute('data-cp'))))
+      .filter((v) => v !== '')
+      .map(Number)
+    if (!cps.length || cps[0] !== Math.min(...cps)) problems.push(`物品：依價值排序後第一列不是最低：${cps.slice(0, 5).join(',')}`)
+    await items.locator('[data-table="mundane"] th[data-sort="name"]').click()
+    await items.getByTestId('item-filter-toggle').click()
+
     // M4-1：徽章顯示縮寫（PHB24），搜尋縮寫或原始代碼結果相同
     await page.click('[data-tab="race"]')
     await waitCount()

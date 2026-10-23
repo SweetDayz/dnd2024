@@ -113,6 +113,8 @@ const low = (s: unknown) => String(s ?? '').toLowerCase()
 const KEY: Record<string, (e: Json) => string> = {
   default: (e) => `${e.name}|${low(e.source)}`,
   subrace: (e) => `${e.name}|${low(e.source)}|${e.raceName}|${low(e.raceSource)}`,
+  // 物品類型以縮寫互相參照（_copy: {abbreviation: "SHP", source: "DMG"}）
+  itemType: (e) => `${e.abbreviation}|${low(e.source)}`,
   subclass: (e) => `${e.name}|${low(e.source)}|${e.className}|${low(e.classSource)}`,
   classFeature: (e) => `${e.name}|${low(e.source)}|${e.className}|${low(e.classSource)}|${e.level}`,
   subclassFeature: (e) =>

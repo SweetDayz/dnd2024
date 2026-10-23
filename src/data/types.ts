@@ -118,7 +118,7 @@ export const DATA_FILES = {
   items: ['item'],
   spells: ['spell'],
   classes: ['class', 'subclass', 'classFeature', 'subclassFeature'],
-  rules: ['language', 'skill', 'condition', 'disease', 'status', 'variantrule', 'sense', 'action', 'itemProperty', 'itemMastery'],
+  rules: ['language', 'skill', 'condition', 'disease', 'status', 'variantrule', 'sense', 'action', 'itemProperty', 'itemMastery', 'itemType'],
 } as const satisfies Record<string, readonly EntryKind[]>
 
 export type DataFileName = keyof typeof DATA_FILES

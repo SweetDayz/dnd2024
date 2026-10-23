@@ -483,6 +483,7 @@ DDB 的屬性值提升、傳奇恩惠、法術精通、招牌法術、學者都�
 7. **（M6-2）逐級表中「每級都有」的選擇欄位**：塑能學者的免費法術、法師戲法／法術書／準備法術這幾個欄位，規則引擎把它們的取得等級記為目前等級（20），所以逐級表把它們放在第 20 級那一列。預設維持（與規則引擎一致，法術段落另有完整清單）；若希望拆回實際取得的等級，需要調整規則引擎的欄位結構。
 8. **（M7-2）武器精通（Weapon Mastery）沒有選擇欄位**：目前只要有該特性，攻擊列就顯示所有武器的精通詞條，沒有「選 N 種武器」的欄位。M7 不做；要做的話需新增選擇欄位（存檔加 key，不必升 schemaVersion）。
 9. **（M7-5）總重超過載重時的速度**：XPHB 原文只說「拖拽、抬起、推動超過載重的重量時速度至多 5 尺」，載重本身是「可以承載的最大重量」。預設解讀：總重超過載重＝只能用拖拽／推動的方式帶著走，所以步行速度顯示為至多 5 呎並附說明圖示；超過拖拽上限時只加警示（不把速度改成 0）。若希望超重時只標示、不改速度，請告知。
+10. **（M7-7）是否納入魔法物品的特定變體**（+1 長劍、火焰舌短劍這類由「通用變體 × 基礎物品」組合出的條目）：目前管線只有通用變體（214 筆），沒有特定變體，物品表的「分類」篩選只有基礎／通用變體／其他。要納入需要在建置期組合（數量會多出數千筆），M7 不做。
 
 ### 已決定（2026-10-23）
 
@@ -713,3 +714,26 @@ DDB 的屬性值提升、傳奇恩惠、法術精通、招牌法術、學者都�
 - `src/components/filter/FacetFilterPanel.vue`（原 `SpellFilterPanel.vue`，改為 generic 元件，預設 slot 可放範圍篩選）。
 - `src/components/table/SortableTable.vue`（`SpellPickTable` 改用它）。
 - `src/stores/prefsStorage.ts`（localStorage 讀寫）＋ `src/stores/tablePrefs.ts`（語言、物品表格的偏好；spellPrefs 也改用 prefsStorage）。
+
+## 21. M7-7：物品表格的欄位與分類
+
+### 21a. 欄位調查（`data/items.js`，2559 筆）
+
+- **一般／魔法**：沿用 M7-3 的 `isMundaneItem`（`rarity === 'none'`）。官方群組下一般 531、魔法 1155（另 873 筆重印舊版預設隱藏）。
+- **類型**：`type` 是「代碼|來源」（`M|XPHB`）；763 筆沒有 type（多半是奇物，`wondrous: true`）。類型中文名原本沒打包，M7-7 把 `items-base.json` 的 `itemType`（67 筆）加進 `data/rules.js`（`itemType` 以縮寫互相 `_copy`，管線加了 `itemType` 專用查找鍵）。沒有 type 的奇物顯示「奇物」，其他顯示「其他」。
+- **物品屬性**：`property` 陣列，「代碼|來源」字串，另有 1 筆物件寫法 `{uid: "2H|XPHB", note}`。名稱取 `itemProperty` 的 `entries[0].name`（双手、灵巧…）；不同代碼同名時附代碼（`弹药（A）`、`弹药（AF）` 火器彈藥）。註：資料把 Light 譯成「光线」，保留原文。
+- **武器精通**：`mastery` 陣列（8 種，XPHB）。
+- **同調**：`reqAttune` 為 `true`（673 筆）＝需要同調；字串（263 筆，例如「由法师」「需已丧失一只手…」）＝需特定條件才能同調，原文在詳情顯示；沒有＝不需要。
+- **稀有度**：有 5 筆是簡體中文值（珍稀、极珍稀、传说），併回英文代碼。
+- **價值**：`value` 以銅幣計（817 筆有）；**重量** `weight`（1001 筆有）。沒有值的在排序時一律排最後、範圍篩選有設值時排除。
+
+### 21b. 分類（基礎／通用變體／特定變體／其他）
+
+- 基礎：`isBaseItem`（226 筆，items-base 的 baseitem）。
+- 通用變體：`isGenericVariant`（214 筆，管線已把 `magicvariants.json` 展開成「+1 武器」這類通用條目，type `GV`）。
+- **特定變體：管線沒有產生**（5etools 網站在執行期把 magicvariant × baseitem 組合成「+1 長劍」等，我們沒有做）。所以分類篩選只會出現基礎、通用變體、其他（`collectTags` 只列資料裡有的）。是否納入特定變體記在待決 §13 第 10 項，M7 不擴充資料。
+- 有 `baseItem` 欄位的（198 筆，例如 +1 调律者之鼓）是獨立的具名物品，歸「其他」。
+
+### 21c. 實作
+
+- `src/data/itemTable.ts`（`itemRow`、`itemLabels`、`filterItems`（含價值 GP／重量範圍）、`sortItems`）、`src/components/items/ItemTables.vue`。資料瀏覽器的物品分頁與物品欄「＋ 從物品表新增」共用；篩選偏好存 `tablePrefs`（`browser:item`、`inventory:add`；兩個表各自記排序）。

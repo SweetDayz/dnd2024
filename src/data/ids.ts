@@ -31,6 +31,7 @@ export type EntryKind =
   | 'action'
   | 'itemProperty'
   | 'itemMastery'
+  | 'itemType'
 
 export function makeId(kind: EntryKind, name: string, source: string, ...extra: (string | number)[]): string {
   return [kind, name, source, ...extra].join('|')

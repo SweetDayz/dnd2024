@@ -5,10 +5,12 @@ import { computed, ref } from 'vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import type { Currency, InventoryItem } from '@/rules/character'
 import { CARRYING_RULE_ID, COIN_RULE, itemWeight } from '@/rules/equipment'
-import { entryMatches } from '@/data/sourceDisplay'
+import { itemDefaults } from '@/data/itemTable'
+import type { Entry } from '@/data/types'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
 import LegacyBadge from './LegacyBadge.vue'
 import LegacyHint from './LegacyHint.vue'
+import ItemTables from './items/ItemTables.vue'
 import SourceBadge from './SourceBadge.vue'
 import EntryBlock from './entries/EntryBlock.vue'
 
@@ -34,15 +36,14 @@ const groupWeight = (list: { weight: number }[]) => Math.round(list.reduce((s, r
 
 const filter = useSourceFilterStore()
 const revealLegacy = ref(false)
-const matchSplit = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return { shown: [], hidden: 0 }
-  return filter.legacySplit(
-    data.value.list('item').filter((it) => entryMatches(it, q)),
-    revealLegacy.value,
-  )
-})
-const matches = computed(() => matchSplit.value.shown.slice(0, 20))
+// 新增物品（M7-7）：與資料瀏覽器共用物品表格（一般／魔法分表、篩選、排序）
+const pickerOpen = ref(false)
+const itemSplit = computed(() => filter.legacySplit(data.value.list('item'), revealLegacy.value))
+const pickDefaults = computed(() => itemDefaults(filter.enabled))
+function jumpTo(newer: Entry) {
+  revealLegacy.value = false
+  add(newer.id)
+}
 
 function edit(uid: string, fn: (i: InventoryItem) => void) {
   store.update((ch) => {
@@ -170,19 +171,16 @@ const isEquippable = (it: unknown) => {
     </section>
 
     <div class="add">
-      <input v-model="query" type="search" placeholder="新增物品：輸入名稱搜尋（中文或英文）" data-testid="item-search" />
+      <button type="button" :class="{ on: pickerOpen }" data-testid="item-picker-toggle" @click="pickerOpen = !pickerOpen">
+        {{ pickerOpen ? '收起物品表' : '＋ 從物品表新增' }}
+      </button>
+      <input v-model="query" type="text" placeholder="或輸入名稱新增自訂物品" data-testid="item-search" />
       <button type="button" :disabled="!query.trim()" @click="addCustom">新增為自訂物品</button>
     </div>
-    <LegacyHint v-model="revealLegacy" :hidden="matchSplit.hidden" />
-    <ul v-if="matches.length" class="matches">
-      <li v-for="it in matches" :key="it.id">
-        <button type="button" :data-id="it.id" @click="add(it.id)">
-          {{ it.name }} <small class="muted">{{ it.engName }}</small>
-          <SourceBadge :source="it.source" :page="it.page" />
-          <LegacyBadge :entry="it" @jump="(n) => (query = n.name)" />
-        </button>
-      </li>
-    </ul>
+    <template v-if="pickerOpen">
+      <LegacyHint v-model="revealLegacy" :hidden="itemSplit.hidden" />
+      <ItemTables table-id="inventory:add" :items="itemSplit.shown" :data="data" :defaults="pickDefaults" pick @pick="(e) => add(e.id)" @jump="jumpTo" />
+    </template>
 
     <h4>金錢</h4>
     <div class="coins">
