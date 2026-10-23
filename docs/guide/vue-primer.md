@@ -373,6 +373,30 @@ const { store, build, sheet } = useCharacterBuild()
 - 匯出：`new Blob([json])` → `URL.createObjectURL()` → 建一個 `<a download>` 並 `click()`。`blob:` 網址是瀏覽器記憶體內的資料，不是網路請求，所以 file:// 下也能用。
 - 匯入：`<input type="file">` 讓使用者選檔，`await file.text()` 讀內容。同樣不經過網路。
 
+### `provide` / `inject`：跨好幾層傳資料
+
+角卡上每個數值旁的 ✦（[EffectMark.vue](../../src/components/sheet/EffectMark.vue)）都需要「效果清單」和「跳到效果頁」的函式。
+如果用 props，得從 SheetView 一路傳過每一層。改用 provide／inject：
+
+```ts
+// SheetView.vue（上層）
+provide(SHEET_CONTEXT, { effects, showEffects })
+// EffectMark.vue（任意深的下層）
+const ctx = inject(SHEET_CONTEXT)
+```
+
+`SHEET_CONTEXT` 是 `InjectionKey<SheetContext>`（[context.ts](../../src/components/sheet/context.ts)），讓 TypeScript 知道 inject 拿到的型別。
+
+### 踩到的坑：scoped style 會套到子元件的根元素
+
+`<style scoped>` 只套用在本元件的元素上，**但子元件的根元素例外**（Vue 故意這樣設計，讓父層能調整子元件外框）。
+角卡原本寫 `.stat span { font-size: 0.75rem }` 想縮小標籤，結果子元件 `OverrideValue` 的根元素剛好也是 `<span>`，數值跟著變小。
+解法是寫得更精確：`.stat > span`。
+
+### 下載檔案的測試
+
+`scripts/check-file.mjs` 用 Playwright 的 `page.waitForEvent('download')` 接住「匯出 JSON」產生的下載，再用 `setInputFiles` 把同一個檔案匯入，比對前後完全相同——這就是 M2 完成標準的自動化版本。
+
 ### M2 之後的檔案地圖（新增部分）
 
 ```
@@ -388,5 +412,11 @@ src/stores/character.ts     角色清單、目前角色、localStorage、匯出�
 src/components/builder/     ChoiceSlotView（通用選擇欄位）、EntryPicker、OriginChip
 src/components/CharacterBar.vue  角色工具列
 src/views/BuilderView.vue   建角精靈；src/views/builder/ 各步驟
+src/rules/multiclass.ts     兼職條件、施法者等級、法術位
+src/rules/spells.ts         職業法術數量、法術列（時間、射程、命中／DC、傷害升階）
+src/rules/equipment.ts      起始裝備、重量負重、AC、攻擊列
+src/rules/sheetExtras.ts    手動覆寫、個性懶人表、身高體重
+src/components/SpellTable.vue、AttackTable.vue、InventoryPanel.vue  建角與角卡共用
+src/components/sheet/       角卡分頁（特性、效果、背景）、覆寫數值、效果小圖示
 src/views/SheetView.vue     角卡
 ```

@@ -2,7 +2,7 @@
 // 檢查：console error、未處理的例外／promise rejection、資源載入失敗、
 // 任何非 file:// 的網路請求（執行期不得連網），以及畫面上的關鍵文字。
 // 有任何問題就以非零結束碼退出。
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
@@ -190,8 +190,56 @@ async function builderSmoke(page, problems) {
     await page.click('[data-step="confirm"]')
     const hp12 = await page.getByTestId('hp-max').innerText()
     if (hp12.trim() !== '74') problems.push(`升級：12 級 HP 應為 74，畫面為 ${hp12}`)
+
+    await sheetSmoke(page, problems)
   } catch (err) {
     problems.push(`建角流程失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
+  }
+}
+
+/**
+ * 角卡 smoke test（M2 完成標準）：12 級基準角色的主要數值、手動覆寫標示、效果連結，
+ * 以及 JSON 匯出再匯入後角卡完全相同。
+ * @param {import('playwright').Page} page
+ * @param {string[]} problems
+ */
+async function sheetSmoke(page, problems) {
+  try {
+    await page.click('[data-view="sheet"]')
+    const text = async (id) => (await page.getByTestId(id).first().innerText()).replace(/\s+/g, ' ').trim()
+    const expect = { 'sheet-ac': '11', 'sheet-hp': '74', 'sheet-pb': '+4', 'sheet-init': '+1', 'sheet-pp': '12', 'sheet-dc': 'DC 15' }
+    for (const [id, want] of Object.entries(expect)) {
+      const got = await text(id)
+      if (!got.startsWith(want)) problems.push(`角卡：${id} 應為 ${want}，畫面為 ${got}`)
+    }
+    // 手動覆寫 AC → 顯示「已覆寫」，清空後恢復
+    const ac = page.locator('[data-override="ac"]')
+    await ac.locator('button.edit').click()
+    await ac.locator('input').fill('15')
+    await ac.locator('input').press('Enter')
+    if (!(await ac.innerText()).includes('已覆寫')) problems.push('角卡：覆寫 AC 後沒有顯示「已覆寫」')
+    await ac.locator('button.edit').click()
+    await ac.locator('input').fill('')
+    await ac.locator('input').press('Enter')
+    // 智力豁免旁的效果圖示 → 效果頁出現侏儒狡黠
+    await page.locator('[data-save="int"] [data-effect="save:int"]').click()
+    await page.getByTestId('effects').getByText('侏儒狡黠').first().waitFor({ timeout: 3000 })
+
+    // 匯出 → 匯入（覆蓋同一角色）→ 角卡與匯出檔都完全相同
+    const snapshot = async () => (await page.getByTestId('sheet').innerText()).replace(/\s+/g, ' ')
+    const before = await snapshot()
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').click()])
+    const path = await download.path()
+    const exported = readFileSync(path, 'utf8')
+    page.once('dialog', (d) => d.accept())
+    await page.getByTestId('import-file').setInputFiles(path)
+    await page.getByTestId('bar-message').getByText('已匯入').waitFor({ timeout: 3000 })
+    const [download2] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').click()])
+    const exported2 = readFileSync(await download2.path(), 'utf8')
+    if (exported2 !== exported) problems.push('匯出再匯入後，再次匯出的 JSON 不同')
+    if ((await snapshot()) !== before) problems.push('匯出再匯入後，角卡畫面不同')
+  } catch (err) {
+    problems.push(`角卡流程失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }
 }
 

@@ -178,3 +178,23 @@ export function detectEntry(e: Entry, data?: RulesData): Effect[] {
   const feature: Feature = { key: e.id, entry: e, category: 'feat', origin: { type: 'feat', name: e.name, level: 1 }, slotKeys: [] }
   return detectEffects({ features: [feature] }, data)
 }
+
+/** 效果欄位的顯示名稱（篩選按鈕用）。 */
+export function effectFieldLabel(f: string): string {
+  const [k = '', v = ''] = f.split(':')
+  const ab = (ABILITIES as readonly string[]).includes(v) ? ABILITY_NAME[v as Ability].zh : v
+  if (k === 'save') return v === 'all' ? '所有豁免' : `${ab}豁免`
+  if (k === 'check') return `${ab}檢定`
+  if (k === 'skill') return `技能：${v}`
+  const LABEL: Record<string, string> = {
+    ac: 'AC',
+    speed: '速度',
+    initiative: '先攻',
+    hp: 'HP',
+    defenses: '抗性與免疫',
+    senses: '感官',
+    passive: '被動感知',
+    attacks: '攻擊與傷害',
+  }
+  return LABEL[k] ?? f
+}
