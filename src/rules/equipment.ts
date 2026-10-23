@@ -182,27 +182,49 @@ export function itemWeight(data: RulesData, i: InventoryItem): number {
   return Number(it?.weight ?? 0) * i.qty
 }
 
+/** 載重表的體型倍數（XPHB p.362：微型 ×7.5、小型／中型 ×15、大型 ×30、巨型 ×60、超巨型 ×120，以 ×15 為 1） */
 const SIZE_MULT: Record<string, number> = { T: 0.5, S: 1, M: 1, L: 2, H: 4, G: 8 }
 
+/** XPHB 第六章「钱币」p.213：「一枚钱币的重量大约有三分之一盎司，50 枚钱币则大约有一磅沉。」不分幣別。 */
+export const COINS_PER_POUND = 50
+export const COIN_RULE = { text: '一枚钱币的重量大约有三分之一盎司，50 枚钱币则大约有一磅沉。', source: 'XPHB', page: 213 }
+/** XPHB 規則詞彙「载重」：拖拽、抬起、推動超過載重的重量時，速度至多 5 尺 */
+export const CARRYING_RULE_ID = 'variantrule|载重|XPHB'
+export const OVERLOAD_SPEED_CAP = 5
+
+export const coinWeight = (cur: Currency) => (cur.cp + cur.sp + cur.ep + cur.gp + cur.pp) / COINS_PER_POUND
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
 export interface Encumbrance {
+  /** 物品重量（不含錢幣） */
   carried: number
-  /** 硬幣重量（每 50 枚 1 磅；另計，DDB 也不計入） */
+  /** 錢幣重量（每 50 枚 1 磅） */
   coins: number
+  /** 總重 = 物品 + 錢幣 */
+  total: number
+  /** 載重（可承載的最大重量） */
   capacity: number
-  /** 推、拉、舉起的上限 */
+  /** 拖拽／抬起／推動的上限 */
   dragLift: number
+  /** 總重超過載重：只能用拖拽／推動的方式移動，速度至多 5 尺 */
+  over: boolean
+  /** 總重連拖拽／抬起／推動的上限都超過 */
+  overDragLift: boolean
 }
 
-/** 2024 規則：負重上限 = 力量 × 15（依體型倍數），推拉舉 = 力量 × 30。 */
+/**
+ * 2024 規則（XPHB p.362「载重」）：載重 = 力量 × 15、拖拽／抬起／推動 = 力量 × 30（依體型倍數）。
+ * 不使用 2014 的變體負重（Encumbrance）規則。
+ */
 export function encumbrance(data: RulesData, c: Character, str: number, size: string): Encumbrance {
   const mult = SIZE_MULT[size] ?? 1
-  const coins = (c.currency.cp + c.currency.sp + c.currency.ep + c.currency.gp + c.currency.pp) / 50
-  return {
-    carried: Math.round(c.inventory.reduce((s, i) => s + itemWeight(data, i), 0) * 100) / 100,
-    coins: Math.round(coins * 100) / 100,
-    capacity: str * 15 * mult,
-    dragLift: str * 30 * mult,
-  }
+  const carried = round2(c.inventory.reduce((s, i) => s + itemWeight(data, i), 0))
+  const coins = round2(coinWeight(c.currency))
+  const total = round2(carried + coins)
+  const capacity = str * 15 * mult
+  const dragLift = str * 30 * mult
+  return { carried, coins, total, capacity, dragLift, over: total > capacity, overDragLift: total > dragLift }
 }
 
 // ---------------------------------------------------------------------------

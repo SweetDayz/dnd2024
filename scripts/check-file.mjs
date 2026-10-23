@@ -496,9 +496,33 @@ async function sheetSmoke(page, problems) {
     if (await page.getByTestId('export-error').count()) problems.push(`xlsx 匯出錯誤：${await page.getByTestId('export-error').innerText()}`)
 
     await reviewSmoke(page, problems, before, snapshot)
+    await overloadSmoke(page, problems)
   } catch (err) {
     problems.push(`角卡流程失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }
+}
+
+/**
+ * M7-5：基準角色（力量 8，載重 120 磅）身上放 10000 GP（200 磅）→ 物品頁出現超重標示、
+ * 錢幣列 200 磅、速度變 5 呎並有說明圖示；最後還原金幣。
+ * @param {import('playwright').Page} page
+ * @param {string[]} problems
+ */
+async function overloadSmoke(page, problems) {
+  await page.click('[data-tab-sheet="inventory"]')
+  const gp = page.locator('[data-coin="gp"]').first()
+  const old = await gp.inputValue()
+  await gp.fill('10000')
+  await gp.dispatchEvent('change')
+  await page.getByTestId('overloaded').waitFor({ timeout: 3000 })
+  const coins = Number(await page.getByTestId('coin-weight').innerText())
+  if (coins < 200) problems.push(`超重：錢幣重量應至少 200 磅，畫面為 ${coins}`)
+  const speed = (await page.locator('[data-override="speed"]').first().innerText()).trim()
+  if (!speed.startsWith('5')) problems.push(`超重：速度應為 5 呎，畫面為 ${speed}`)
+  if (!(await page.getByTestId('speed-note').count())) problems.push('超重：速度旁沒有說明圖示')
+  await gp.fill(old)
+  await gp.dispatchEvent('change')
+  if (await page.getByTestId('overloaded').count()) problems.push('超重：還原金幣後仍顯示超重')
 }
 
 /**

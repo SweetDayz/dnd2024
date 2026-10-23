@@ -118,7 +118,10 @@ const PROF_LABEL = ['—', '熟練', '專精'] as const
         </div>
         <div class="stat">
           <span>速度</span>
-          <strong><OverrideValue k="speed" :value="walk" suffix=" 呎" /><EffectMark field="speed" /></strong>
+          <strong>
+            <OverrideValue k="speed" :value="walk" suffix=" 呎" /><EffectMark field="speed" />
+            <span v-if="sheet.speedNotes.length" class="speed-note" data-testid="speed-note" :title="sheet.speedNotes.join('；')">⚠</span>
+          </strong>
           <small v-if="otherSpeeds.length">{{ otherSpeeds.map((s) => `${SPEED[s.mode] ?? s.mode} ${s.value}`).join('、') }}</small>
         </div>
         <div class="stat">
@@ -502,5 +505,11 @@ h4 {
 }
 .muted {
   color: var(--color-text-muted);
+}
+.speed-note {
+  margin-left: 2px;
+  color: var(--color-danger);
+  font-size: 0.8rem;
+  cursor: help;
 }
 </style>

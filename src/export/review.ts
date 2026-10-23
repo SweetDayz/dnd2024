@@ -30,7 +30,7 @@ export interface Item {
   note?: string
 }
 
-export type WarningKind = '手動覆寫' | '未完成的選擇' | '失效的選擇' | 'TCE 可選規則' | '重印舊版' | '2014 相容規則' | '屬性值'
+export type WarningKind = '手動覆寫' | '未完成的選擇' | '失效的選擇' | '超過載重' | 'TCE 可選規則' | '重印舊版' | '2014 相容規則' | '屬性值'
 
 export interface ReviewWarning {
   kind: WarningKind
@@ -209,6 +209,14 @@ export function buildReviewModel(x: ExportInput): ReviewModel {
   const compatOrigins = [...b.features.map((f) => f.origin), ...b.slots.map((v) => v.origin), ...b.profs.map((p) => p.origin)]
   for (const o of compatOrigins) {
     if (o.compat) warn({ kind: '2014 相容規則', text: `${originText(o)}：2014 版條目，依 2024 PHB 相容規則處理`, src: originBadge(o) })
+  }
+  const enc = s.encumbrance
+  if (enc.over) {
+    warn({
+      kind: '超過載重',
+      text: `總重 ${enc.total} 磅（物品 ${enc.carried}＋錢幣 ${enc.coins}）超過載重 ${enc.capacity} 磅${enc.overDragLift ? `，也超過拖拽／抬起／推動上限 ${enc.dragLift} 磅` : ''}；依 XPHB「载重」速度至多 5 呎`,
+      src: badge({ source: 'XPHB', page: 362 }),
+    })
   }
   const breakdown = abilityBreakdown(c, b)
   for (const w of breakdown.warnings) warn({ kind: '屬性值', text: w })

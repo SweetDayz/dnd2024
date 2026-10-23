@@ -10,7 +10,7 @@ import { originText } from './abilityBreakdown.ts'
 import type { Build, Origin, ProfGrant } from './build.ts'
 import type { Character } from './character.ts'
 import { profLabel, skillList, type ProfType, type RulesData } from './data.ts'
-import { armorClass, encumbrance, type ArmorClass, type Encumbrance } from './equipment.ts'
+import { armorClass, encumbrance, OVERLOAD_SPEED_CAP, type ArmorClass, type Encumbrance } from './equipment.ts'
 import { spellSlots, type SpellSlots } from './multiclass.ts'
 
 export interface AbilityScore {
@@ -78,6 +78,8 @@ export interface Sheet {
   hp: { max: number; levels: HpLevelRow[]; conMod: number }
   hitDice: { die: number; count: number }[]
   speeds: { mode: string; value: number; origin: Origin }[]
+  /** 步行速度被規則扣減的原因（重甲力量不足、超過載重）；角卡速度旁的圖示用 */
+  speedNotes: string[]
   senses: { type: string; range: number; origin: Origin }[]
   profs: Record<Exclude<ProfType, 'skill' | 'save' | 'expertise'>, ProfRow[]>
   /** 法術位（含兼職施法者等級與契約魔法） */
@@ -241,7 +243,17 @@ export function deriveSheet(c: Character, b: Build, data: RulesData): Sheet {
   const ac = armorClass(data, c, { abilities, profs: { armor: groupProfs(data, b.profs, 'armor') } })
   // 重甲的力量需求未達：速度 −10 呎（2024 PHB 護甲表規則）
   const heavyPenalty = ac.armor?.strength && abilities.str.score < Number(ac.armor.strength) ? 10 : 0
-  if (heavyPenalty) speeds[walkIdx] = { ...speeds[walkIdx]!, value: Math.max(0, speeds[walkIdx]!.value - heavyPenalty) }
+  const speedNotes: string[] = []
+  if (heavyPenalty) {
+    speeds[walkIdx] = { ...speeds[walkIdx]!, value: Math.max(0, speeds[walkIdx]!.value - heavyPenalty) }
+    speedNotes.push(`重甲力量需求 ${ac.armor!.strength} 未達：速度 −10 呎`)
+  }
+  // 超過載重（XPHB「载重」）：拖拽／抬起／推動超過載重的重量時速度至多 5 尺。其他移動方式（飛行等）原文沒規定，不動
+  const enc = encumbrance(data, c, abilities.str.score, b.size?.value ?? 'M')
+  if (enc.over && speeds[walkIdx]!.value > OVERLOAD_SPEED_CAP) {
+    speeds[walkIdx] = { ...speeds[walkIdx]!, value: OVERLOAD_SPEED_CAP }
+    speedNotes.push(`總重 ${enc.total} 磅超過載重 ${enc.capacity} 磅：依 XPHB「载重」，拖拽／推動超過載重的重量時速度至多 ${OVERLOAD_SPEED_CAP} 呎`)
+  }
   const walkSpeed = ov('speed', speeds[walkIdx]!.value)
   if (walkSpeed !== speeds[walkIdx]!.value) speeds[walkIdx] = { ...speeds[walkIdx]!, value: walkSpeed }
 
@@ -267,11 +279,12 @@ export function deriveSheet(c: Character, b: Build, data: RulesData): Sheet {
     hp: { max: hpMax, levels: hpLevels, conMod },
     hitDice: [...dice.entries()].map(([die, count]) => ({ die, count })),
     speeds,
+    speedNotes,
     senses: maxBy(b.senses, (s) => s.type, (s) => s.range),
     profs,
     spellcasting: spellSlots(b.classes),
     ac: { ...ac, value: ov('ac', ac.value) },
-    encumbrance: encumbrance(data, c, abilities.str.score, b.size?.value ?? 'M'),
+    encumbrance: enc,
     overridden,
   }
 }

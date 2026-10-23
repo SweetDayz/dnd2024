@@ -4,12 +4,13 @@
 import { computed, ref } from 'vue'
 import { useCharacterBuild } from '@/composables/useCharacterBuild'
 import type { Currency, InventoryItem } from '@/rules/character'
-import { itemWeight } from '@/rules/equipment'
+import { CARRYING_RULE_ID, COIN_RULE, itemWeight } from '@/rules/equipment'
 import { entryMatches } from '@/data/sourceDisplay'
 import { useSourceFilterStore } from '@/stores/sourceFilter'
 import LegacyBadge from './LegacyBadge.vue'
 import LegacyHint from './LegacyHint.vue'
 import SourceBadge from './SourceBadge.vue'
+import EntryBlock from './entries/EntryBlock.vue'
 
 const { data, store, sheet } = useCharacterBuild()
 const c = computed(() => store.current!)
@@ -25,6 +26,10 @@ const groups = computed(() => [
   { id: 'equipment' as const, label: '身上', rows: rows.value.filter((r) => r.inv.container === 'equipment') },
   { id: 'backpack' as const, label: '背包', rows: rows.value.filter((r) => r.inv.container === 'backpack') },
 ])
+/** 負重條：以拖拽／抬起／推動上限為 100%，載重的位置畫一條刻度 */
+const enc = computed(() => sheet.value?.encumbrance)
+const carryRule = computed(() => data.value.get(CARRYING_RULE_ID))
+const pct = (n: number) => `${Math.min(100, (n / Math.max(1, enc.value?.dragLift ?? 1)) * 100)}%`
 const groupWeight = (list: { weight: number }[]) => Math.round(list.reduce((s, r) => s + r.weight, 0) * 100) / 100
 
 const filter = useSourceFilterStore()
@@ -69,11 +74,36 @@ const isEquippable = (it: unknown) => {
 
 <template>
   <div class="inventory" data-testid="inventory">
-    <p v-if="sheet" class="summary">
-      攜帶 <strong data-testid="carried">{{ sheet.encumbrance.carried }}</strong> 磅／負重上限 {{ sheet.encumbrance.capacity }} 磅
-      <small class="muted">（推拉舉 {{ sheet.encumbrance.dragLift }} 磅；硬幣另計 {{ sheet.encumbrance.coins }} 磅）</small>
-      <span v-if="sheet.encumbrance.carried > sheet.encumbrance.capacity" class="warn">超過負重上限</span>
-    </p>
+    <section v-if="enc" class="load" :class="{ over: enc.over }" data-testid="encumbrance">
+      <table class="weights">
+        <tbody>
+          <tr><th>物品</th><td><strong data-testid="carried">{{ enc.carried }}</strong> 磅</td></tr>
+          <tr>
+            <th>錢幣</th>
+            <td>
+              <span data-testid="coin-weight">{{ enc.coins }}</span> 磅
+              <small class="muted" :title="COIN_RULE.text">（每 50 枚 1 磅）</small>
+              <SourceBadge :source="COIN_RULE.source" :page="COIN_RULE.page" />
+            </td>
+          </tr>
+          <tr class="sum"><th>總重</th><td><strong data-testid="total-weight">{{ enc.total }}</strong> 磅</td></tr>
+        </tbody>
+      </table>
+      <div class="bar" role="meter" :aria-valuenow="enc.total" :aria-valuemax="enc.dragLift" aria-label="負重">
+        <div class="fill" :style="{ width: pct(enc.total) }" />
+        <div class="mark" :style="{ left: pct(enc.capacity) }" />
+      </div>
+      <p class="limits">
+        載重 {{ enc.capacity }} 磅（力量 × 15）・拖拽／抬起／推動 {{ enc.dragLift }} 磅（力量 × 30）
+        <SourceBadge v-if="carryRule" :source="carryRule.source" :page="carryRule.page" />
+      </p>
+      <div v-if="enc.over" class="warn over-box" data-testid="overloaded">
+        <strong>⚠ 超過載重：總重 {{ enc.total }} 磅 ＞ 載重 {{ enc.capacity }} 磅</strong>
+        <span v-if="enc.overDragLift">，也超過拖拽／抬起／推動上限 {{ enc.dragLift }} 磅（無法移動這些重量）</span>
+        <p>依原文，拖拽、抬起、推動超過載重的重量時，速度至多 5 呎（角卡速度已套用）。</p>
+        <div v-if="carryRule?.entries" class="rule"><EntryBlock :entry="(carryRule.entries as unknown[]).slice(0, 2)" /></div>
+      </div>
+    </section>
 
     <section v-for="g in groups" :key="g.id">
       <h4>{{ g.label }}（{{ g.rows.length }}）<small class="muted">{{ groupWeight(g.rows) }} 磅</small></h4>
@@ -245,6 +275,62 @@ button {
 }
 .warn {
   color: var(--color-danger);
+}
+.load {
+  margin-bottom: var(--space-3);
+}
+.weights {
+  width: auto;
+  margin-bottom: var(--space-2);
+}
+.weights th {
+  padding-right: var(--space-3);
+  text-align: left;
+  color: var(--color-text-muted);
+  font-weight: normal;
+}
+.weights .sum th,
+.weights .sum td {
+  border-top: 1px solid var(--color-border);
+}
+.bar {
+  position: relative;
+  height: 10px;
+  max-width: 480px;
+  border-radius: 5px;
+  background: var(--color-surface-raised);
+}
+.fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--color-tce);
+}
+.load.over .fill {
+  background: var(--color-danger);
+}
+.mark {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 16px;
+  background: var(--color-accent);
+}
+.limits {
+  margin: var(--space-1) 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+.over-box {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+}
+.over-box p {
+  margin: var(--space-1) 0;
+}
+.over-box .rule {
+  color: var(--color-text);
+  font-size: 0.85rem;
 }
 .muted {
   color: var(--color-text-muted);
