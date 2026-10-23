@@ -350,6 +350,8 @@ object 7  itemMastery 7  optfeature 5  deck 5  subclass 5  tip 4  h 3  link 2  d
 - `additionalSpells`：`known`／`prepared`／`innate`／`expanded`，等級鍵 `_`（一開始）、數字（角色或職業等級）、`s1`（環位）；`innate` 內再分 `daily`（`"1"`、`"1e"`、`"pb"`）、`rest`、`will`。法術為 `名|來源#c` 或 `{choose: "level=0|class=牧师", count}`。
 - 2024 職業的屬性值提升不在 `featProgression`，而是職業特性「属性值提升」（engName `Ability Score Improvement`）；`featProgression` 只有戰鬥風格（FS）與傳奇恩惠（EB）。
 - 2024 職業的 `multiclassing` 多半是空物件（沒有 `requirements`），兼職條件改依 `primaryAbility` 判斷（M2b）。
+- 職業特性的「專精」（遊蕩者、吟遊詩人、遊俠、法師學者、知識領域）沒有結構化欄位。依 §6 原則不做對照表，改從原文推斷：內文有 `{@variantrule 专精` 且提到「技能」→ 產生專精選擇欄位，數量取第一個「兩項／一項」。知識領域的「選兩個技能獲得熟練」仍只有原文，需手動覆寫。
+- 兼職施法者等級：資料的 `casterProgression` 有 `full`、`artificer`（半施法無條件進位，XPHB 聖武士／遊俠與奇械師都用這個）、`1/2`（2014 聖武士／遊俠，捨去）、`1/3`（子職：奧法騎士、詭術師、秘術武者）、`pact`（魔契師，另計）。單一施法職業用該職業自己的法術位表；兩個以上才用兼職表。
 - 2024 規則的語言（通用語＋兩種標準語言）不在任何資料欄位，是引擎內建規則；「標準語言」只取 XPHB 的標準語言表（9 種）。
 
 ### 12c. 效果自動偵測（M2a 測試結果）

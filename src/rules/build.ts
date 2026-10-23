@@ -769,7 +769,8 @@ function featOptions(ctx: Ctx, categories: string[] | null, level: number): Choi
       if (pre.text && pre.ok) opt.note = `先決條件：${pre.text}`
       return opt
     })
-    .sort((a, b) => a.label.localeCompare(b.label, 'zh'))
+    // 屬性值提升專長排最前面（最常選），其餘依名稱
+    .sort((a, b) => Number(isAsi(b.entry!)) - Number(isAsi(a.entry!)) || a.label.localeCompare(b.label, 'zh'))
 }
 
 const FEAT_CATEGORY_LABEL: Record<string, string> = {
@@ -1144,7 +1145,36 @@ function referencedFeatures(ctx: Ctx, e: Entry): Entry[] {
   return out
 }
 
+const COUNT_WORD: Record<string, number> = { 一: 1, 两: 2, 二: 2, 三: 3, 四: 4 }
+
+/**
+ * 職業特性的「專精」沒有結構化欄位，只寫在內文（例如遊蕩者、吟遊詩人的專精、法師的學者）。
+ * 依 CLAUDE.md §6 不做人工對照表，改從原文推斷：內文有 {@variantrule 专精} 且提到技能，
+ * 就產生一個專精選擇欄位；數量取第一個「兩項／一項…技能」的數字，找不到就是 1。
+ */
+export function inferExpertiseCount(f: Entry): number {
+  const text = JSON.stringify(f.entries ?? [])
+  if (!text.includes('{@variantrule 专精') || !text.includes('技能')) return 0
+  const m = /([一两二三四])[项个][^。"]{0,30}?(技能|专精)/.exec(text)
+  return m ? (COUNT_WORD[m[1]!] ?? 1) : 1
+}
+
 function addClassFeature(ctx: Ctx, f: Entry, category: 'class' | 'subclass', origin: Origin, slotKeys: string[]) {
+  const n = inferExpertiseCount(f)
+  if (n > 0) {
+    const key = `${f.id}:expertise`
+    const sel = addSlot(ctx, {
+      key,
+      type: 'expertise',
+      label: `專精（選 ${n}；依「${f.name}」原文自動推斷，請依原文限制選擇）`,
+      origin,
+      step: origin.level === 1 ? 'class' : 'levels',
+      count: n,
+      options: skillList(ctx.data).map((s) => ({ value: s.key, label: profLabel(ctx.data, 'skill', s.key) })),
+    })
+    for (const v of sel) grantProf(ctx, 'expertise', v, origin, key)
+    slotKeys = [...slotKeys, key]
+  }
   ctx.out.features.push({ key: f.id, entry: f, category, origin, slotKeys })
   // 子職的「標題特性」底下常用參照列出同級的小特性（例如塑能學者、強效戲法），各自列成特性
   for (const sub of referencedFeatures(ctx, f)) {
@@ -1229,7 +1259,6 @@ function processClasses(ctx: Ctx) {
         if (f && (!f.tceOptional || data.tceOptional)) addClassFeature(ctx, f, 'subclass', scOrigin, [])
       }
       processOptionalFeatureProgression(ctx, sc, L, `${sc.id}:${L}`, scOrigin)
-      if (Array.isArray(sc.additionalSpells)) processSpells(ctx, sc.additionalSpells, sc.id, scOrigin, L, 'levels')
     }
 
     // 3. 專長進程（戰鬥風格、傳奇恩惠）與可選特性進程（魔能祈喚、超魔…）
@@ -1240,11 +1269,16 @@ function processClasses(ctx: Ctx) {
     processOptionalFeatureProgression(ctx, cls, L, `${cls.id}:${L}`, origin)
   })
 
-  // 職業本身的額外法術（例如遊俠的獵人印記）：依最終職業等級
+  // 職業與子職本身的額外法術（例如遊俠的獵人印記、塑能師的塑能學者）：依最終職業等級，只處理一次
   for (const info of out.classes) {
     const cls = info.entry
     if (Array.isArray(cls.additionalSpells)) {
       processSpells(ctx, cls.additionalSpells, cls.id, classOrigin(cls, info.level, c.levels.length), info.level, 'levels')
+    }
+    const sc = info.subclass
+    if (sc && Array.isArray(sc.additionalSpells)) {
+      const scOrigin: Origin = { type: 'subclass', name: sc.name, entry: sc, level: c.levels.length }
+      processSpells(ctx, sc.additionalSpells, sc.id, scOrigin, info.level, 'levels')
     }
   }
 }

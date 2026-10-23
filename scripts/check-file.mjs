@@ -157,6 +157,18 @@ async function builderSmoke(page, problems) {
       const left = await page.getByTestId('choice-slot').allInnerTexts()
       problems.push(`建角：還有未完成的選擇：${left.map((t) => t.split('\n')[0]).join('；')}`)
     }
+
+    // 升到 12 級、選塑能師
+    await page.click('[data-step="levels"]')
+    await page.getByTestId('level-target').fill('12')
+    await page.getByTestId('level-to').click()
+    await page.locator('[data-level="3"] .lv-head').click()
+    await chip('class|法师|XPHB:subclass', 'subclass|塑能师|XPHB|法师|XPHB')
+    const slots = await page.getByTestId('spell-slots').innerText()
+    if (!slots.includes('6環×1')) problems.push(`升級：12 級法師應有 6 環法術位，畫面為 ${slots}`)
+    await page.click('[data-step="confirm"]')
+    const hp12 = await page.getByTestId('hp-max').innerText()
+    if (hp12.trim() !== '74') problems.push(`升級：12 級 HP 應為 74，畫面為 ${hp12}`)
   } catch (err) {
     problems.push(`建角流程失敗：${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }

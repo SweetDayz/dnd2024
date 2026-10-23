@@ -9,6 +9,7 @@ import { ABILITIES, abilityMod, isAbility, proficiencyBonus, type Ability } from
 import type { Build, Origin, ProfGrant } from './build.ts'
 import type { Character } from './character.ts'
 import { profLabel, skillList, type ProfType, type RulesData } from './data.ts'
+import { spellSlots, type SpellSlots } from './multiclass.ts'
 
 export interface AbilityScore {
   ability: Ability
@@ -65,6 +66,8 @@ export interface Sheet {
   speeds: { mode: string; value: number; origin: Origin }[]
   senses: { type: string; range: number; origin: Origin }[]
   profs: Record<Exclude<ProfType, 'skill' | 'save' | 'expertise'>, ProfRow[]>
+  /** 法術位（含兼職施法者等級與契約魔法） */
+  spellcasting: SpellSlots
 }
 
 /** 屬性值：基礎值依序加上各項加值；每項加值有上限（一般 20，傳奇恩惠 30）。 */
@@ -183,5 +186,6 @@ export function deriveSheet(c: Character, b: Build, data: RulesData): Sheet {
       weapon: groupProfs(data, b.profs, 'weapon'),
       armor: groupProfs(data, b.profs, 'armor'),
     },
+    spellcasting: spellSlots(b.classes),
   }
 }

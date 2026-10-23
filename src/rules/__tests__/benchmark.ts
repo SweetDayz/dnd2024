@@ -45,3 +45,13 @@ export function benchmarkLevel1(data: RulesData): Character {
   choose(c, data, (s) => mi(s) && s.type === 'spell' && s.count === 1, ['spell|光导箭|XPHB'])
   return c
 }
+
+export const EVOKER = 'subclass|塑能师|XPHB|法师|XPHB'
+
+/** 基準角色升到 n 級（全部升法師、HP 取平均、選塑能師；屬性值提升與傳奇恩惠維持未選，同 DDB）。 */
+export function benchmarkLevel(data: RulesData, n: number): Character {
+  const c = benchmarkLevel1(data)
+  while (c.levels.length < n) c.levels.push({ classId: WIZARD, hp: { mode: 'average' } })
+  if (n >= 3) choose(c, data, byKey(`${WIZARD}:subclass`), [EVOKER])
+  return c
+}
