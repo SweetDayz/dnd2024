@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SourceInfo } from '../../../src/data/types.ts'
 import { applyMod, expandVersions, resolveCopies } from '../copy.ts'
 import { buildDataset, flattenMagicVariant, type BuildReport } from '../pipeline.ts'
+import { spellIndex, spellOrigins } from '../spellIndex.ts'
 
 const src = (source: string, edition: '2014' | '2024' = '2014'): SourceInfo => ({
   source,
@@ -359,5 +360,61 @@ describe('expandVersions', () => {
       ],
     })
     expect(vs[0]).toMatchObject({ name: '龙裔 (黑)', resist: ['强酸'], entries: [{ entries: ['强酸'] }] })
+  })
+})
+
+describe('法術篩選索引（M5-1）', () => {
+  it('成分、持續時間、射程、標籤整理成扁平欄位，空值不寫出', () => {
+    const idx = spellIndex({
+      level: 3,
+      time: [{ number: 1, unit: 'action' }],
+      range: { type: 'point', distance: { type: 'feet', amount: 150 } },
+      components: { v: true, s: true, m: { text: '钻石', cost: 30000, consume: true } },
+      duration: [{ type: 'timed', duration: { type: 'minute', amount: 10 }, concentration: true }],
+      meta: { ritual: true },
+      miscTags: ['SGT'],
+      entriesHigherLevel: [{}],
+      savingThrow: ['dexterity', '体质'],
+      abilityCheck: ['智力'],
+      damageInflict: ['fire'],
+    })
+    expect(idx).toEqual({
+      time: ['action'],
+      timeSort: 1,
+      dur: '10minutes',
+      durSort: 600,
+      conc: true,
+      ritual: true,
+      comp: ['V', 'S', 'M', 'Mcost', 'Mconsume'],
+      misc: ['SGT', 'SCL'],
+      range: 'point',
+      rangeSort: 1800,
+      dmg: ['fire'],
+      save: ['dex', 'con'],
+      check: ['int'],
+    })
+  })
+
+  it('射程分類與範圍形狀補標', () => {
+    const r = (range: unknown) => spellIndex({ range, duration: [{ type: 'instant' }] })
+    expect(r({ type: 'point', distance: { type: 'self' } }).range).toBe('self')
+    expect(r({ type: 'point', distance: { type: 'touch' } }).range).toBe('touch')
+    expect(r({ type: 'line', distance: { type: 'feet', amount: 100 } })).toMatchObject({ range: 'selfArea', area: ['L'] })
+    expect(r({ type: 'special' }).range).toBe('special')
+  })
+
+  it('子職、種族、專長等來源只留白名單，子職存成緊湊字串', () => {
+    const allowed = new Set(['phb', 'xphb', 'au'])
+    const o = spellOrigins(
+      {
+        subclass: { XPHB: { 法师: { XPHB: { 塑能师: { name: '塑能师' } } } }, PHB: { 牧师: { PSA: { x: { name: 'x' } } } } },
+        feat: { AU: { 塑能专家: true } },
+        race: { ERLW: { '半身人 (医疗龙纹)': { baseName: '半身人' } } },
+        reward: { MOT: { 信众: true } },
+      },
+      (s) => String(s).toUpperCase(),
+      (s) => allowed.has(String(s).toLowerCase()),
+    )
+    expect(o).toEqual({ subclass: ['法师|XPHB|塑能师|XPHB'], feat: ['塑能专家|AU'] })
   })
 })

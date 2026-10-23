@@ -57,6 +57,55 @@ export interface SpellClassRef {
   tceOptional?: boolean
 }
 
+/**
+ * 法術的扁平篩選索引（建置期由 scripts/lib/spellIndex.ts 產生，放在 spell 條目的 `idx`）。
+ * 分類照上游 5etools 法術頁；各值的意義見 src/data/spellFilter.ts 的標籤表與 docs/data-notes.md §15。
+ */
+export interface SpellIndex {
+  /** 施法時間單位：action、bonus、reaction、round、minute、hour、special */
+  time?: string[]
+  timeSort: number
+  /** 持續時間分類：instant、round、minute、10minutes、hour、8hours、24hours、permanent、special */
+  dur: string
+  durSort: number
+  /** 專注 */
+  conc?: boolean
+  /** 儀式 */
+  ritual?: boolean
+  /** 成分：V、S、M、R、Mcost（材料有花費）、Mconsume（會消耗）、MconsumeOpt（可能消耗） */
+  comp?: string[]
+  /** 上游 miscTags（SGT、SMN、TP…），另補推導的 PRM、SCL */
+  misc?: string[]
+  /** 射程分類：self、touch、point、selfArea、special */
+  range: string
+  rangeSort: number
+  /** 範圍形狀 areaTags（ST、MT、C、N…），line／emanation 射程另補 L／E */
+  area?: string[]
+  /** 傷害類型（英文小寫鍵） */
+  dmg?: string[]
+  /** 造成的狀態（簡體中文名） */
+  cond?: string[]
+  /** 豁免、屬性檢定（屬性鍵 str…cha） */
+  save?: string[]
+  check?: string[]
+  /** 法術攻擊：M 近戰、R 遠程 */
+  atk?: string[]
+  /** 影響的生物類型（簡體中文）；沒有＝不限類型 */
+  creature?: string[]
+}
+
+/**
+ * 法術可以從哪些子職、種族、背景、專長、其他特性取得（spell lookup，只留白名單內的來源）。
+ * 子職為「職業|職業來源|子職短名|子職來源」，其餘為「名稱|來源」。
+ */
+export interface SpellOrigins {
+  subclass?: string[]
+  race?: string[]
+  background?: string[]
+  feat?: string[]
+  optionalfeature?: string[]
+}
+
 /** 一個資料檔（public/data/<file>.js）的內容：kind → 條目陣列。 */
 export type DataFile = Partial<Record<EntryKind, Entry[]>>
 

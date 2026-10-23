@@ -522,3 +522,41 @@ DDB 的屬性值提升、傳奇恩惠、法術精通、招牌法術、學者都�
 - `InventoryItem.attuned?: boolean`（選填，舊存檔視為 false，不升 schemaVersion）。物品欄只有 `reqAttune` 為真的物品顯示同調勾選。
 - 匯出只排版規則引擎的結果（`src/export/sheetData.ts`），entries 以 `src/data/text.ts` 的 `entriesToText` 轉純文字（所有 `{@tag}` 經 `stripTags`）。
 - 摘要表沒有「來源」欄（不是可選項目的清單）；種族、背景的來源在「特性與特質」「背景」表。
+
+## 15. M5：法術欄位與篩選索引（M5-1）
+
+抽樣：`raw/spells/spells-*.json` 全部 969 道（上游 `5cc0bbe`），scratchpad 腳本 `spells1.cjs`、`lookup.cjs`。
+代碼的英文名稱對照英文 5etools-src `v2.38.0` 的 `js/parser.js`（`SP_MISC_TAG_TO_FULL`、`SPELL_AREA_TYPE_TO_FULL`）與 `js/filter-spells.js`（分類方式）。
+
+| 資訊 | 欄位與值域（實測） |
+| ---- | ---- |
+| 環階 | `level` 0–9（戲法 80 道） |
+| 學派 | `school`：A C D E I N T V（8 種） |
+| 子學派 | `subschools`：**0 道有**（中文資料沒有這個欄位）→ 篩選群組略過 |
+| 組別 | `groups`：**0 道有**，lookup 也沒有 → 篩選群組略過 |
+| 成分 | `components.v`(919)／`s`(838)／`m`(523)／`r`(3)。`m` 為字串（342）或物件 `{text, cost?, consume?}`；`cost` 單位銅幣（172 道），`consume` 為 `true`(82) 或 `"optional"`(3) |
+| 儀式 | `meta.ritual`（68；`meta` 只有這個鍵） |
+| 專注 | `duration[].concentration`（423） |
+| 施法時間 | `time[]`：`{number, unit, condition?}`，unit 為 action、bonus、reaction、minute、hour；`condition`（27，反應的觸發條件） |
+| 持續時間 | `duration[]`：`instant`、`timed`（`duration.type` 為 round、minute、hour、day）、`permanent`（`ends: ["解除","触发"]`）、`special` |
+| 射程 | `range.type`：point（`distance.type` feet、touch、self、miles、sight、unlimited）、emanation、cone、radius、line、sphere、cube、hemisphere、special |
+| 範圍形狀 | `areaTags`：ST 單一目標、MT 多目標、C 立方、N 錐形、Y 圓柱、S 球形、R 圓形、Q 正方形、L 直線、H 半球、W 牆、E 散發 |
+| 傷害類型 | `damageInflict`：**英文小寫**（fire、force…13 種）。`damageResist`／`damageImmune`／`damageVulnerable` 則是**簡體中文**（建角篩選不用） |
+| 造成的狀態 | `conditionInflict`：簡體中文（15 種） |
+| 法術攻擊 | `spellAttack`：M、R |
+| 豁免 | `savingThrow`：英文全名，**但有 3 道寫成中文**（体质、感知、智力）→ 索引統一轉成 str…cha |
+| 屬性檢定 | `abilityCheck`：**簡體中文**（智力、力量、感知、敏捷）→ 轉成屬性鍵 |
+| 影響的生物類型 | `affectsCreatureType`：簡體中文（77 道）；沒有此欄＝不限（上游視為全部類型） |
+| 雜項 | `miscTags`：HL 治療、THP 臨時生命、SGT 需要視線、PRM 永久效果、SCL 升環效果、SCT 升環增加目標、SMN 召喚生物、MAC 改變 AC、TP 傳送、FMV 強制移動、RO 可擲骰效果、LGTS 日光、LGT 光亮、UA 使用動作、UBA 使用附贈動作、PS 位面轉移、OBS 遮蔽視線、DFT 困難地形、AAD 額外攻擊傷害、OBJ 影響物件、ADV 給予優勢、PIR 重複施放則永久、BO 燒毀物件。上游另外補：有 `permanent` 持續時間→PRM、有 `entriesHigherLevel`→SCL |
+| 戲法升階 | `scalingLevelDice`（41） |
+
+**spell lookup**（`generated/gendata-spell-source-lookup.json`，§6）的其他鍵：
+- `subclass`：`{職業來源: {職業名: {子職來源: {子職短名: {name, subSubclasses?}}}}}`。同一子職常同時列在 PHB 職業與 XPHB 職業底下。
+- `race`：`{來源: {種族名: {baseName?, baseSource?}}}`（名稱可能是「半身人 (医疗龙纹)」這種亞種合併名）。
+- `background`、`feat`：`{來源: {名稱: true}}`；`optionalfeature`：`{來源: {名稱: {featureType}}}`。
+- `reward`（祝福、魔力恩賜）：不屬於建角，**不打包**。
+- `classVariant`：已確認是「其他書擴充進職業清單」，`definedInSources` 有 TCE（158）、XGE（478）、FTD（39）、BMT（22）。只有 TCE 的屬於「TCE 可選規則」（擴充法術表），其餘跟著該書啟用即可（M1 已實作，見 §9）。
+
+**建置索引**（`scripts/lib/spellIndex.ts`）：每道法術加 `idx`（`SpellIndex`，扁平字串陣列＋排序鍵，空陣列與 false 不寫出）與 `origins`（`SpellOrigins`；子職存 `職業|職業來源|子職短名|子職來源`，其他存 `名稱|來源`，只留白名單來源）。分類照上游：施法時間取所有 `time[].unit`；持續時間只看第一個，分 9 類（立即、1 輪、1 分鐘、10 分鐘、1 小時、8 小時、24 小時以上、永久、特殊）；射程分 5 類（自身、觸碰、指定距離、自身（範圍）、特殊）；排序鍵照上游 `getNormalisedTime`／`getNormalisedRange`。
+
+`spells.js`：1.37 MB → **1.83 MB**（`idx` 約 0.16M 字元、`origins` 約 0.19M 字元）。子職第一版存完整物件時是 2.40 MB，改成緊湊字串、顯示名稱執行期查 classes 資料。

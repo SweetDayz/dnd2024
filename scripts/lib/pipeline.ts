@@ -10,6 +10,7 @@
 import { makeId, type EntryKind } from '../../src/data/ids.ts'
 import type { Edition, Entry, SourceInfo, SpellClassRef } from '../../src/data/types.ts'
 import { expandVersions, resolveCopies } from './copy.ts'
+import { spellIndex, spellOrigins } from './spellIndex.ts'
 import type { Json } from './raw.ts'
 
 export type RawInput = Partial<Record<EntryKind | 'baseitem' | 'itemGroup' | 'magicvariant', Json[]>> & {
@@ -265,16 +266,20 @@ export function buildDataset(raw: RawInput, opts: BuildOptions): Dataset {
     }
   }
 
-  // 5. 法術 ↔ 職業
-  if (out.spell && raw.spellLookup) {
+  // 5. 法術 ↔ 職業、子職、種族、背景、專長、其他特性，以及扁平篩選索引
+  if (out.spell) {
     const classes = present('class')
     for (const sp of out.spell) {
+      sp.idx = spellIndex(sp)
+      if (!raw.spellLookup) continue
       const info = raw.spellLookup[low(sp.source)]?.[sp.name]
       const refs = spellClasses(info, canon).filter(
         (c) =>
           classes.has(`${c.className}|${low(c.classSource)}`) && (c.definedIn?.some(isAllowed) ?? true),
       )
       if (refs.length) sp.classes = refs
+      const origins = spellOrigins(info, canon, isAllowed)
+      if (Object.keys(origins).length) sp.origins = origins
     }
   }
 
